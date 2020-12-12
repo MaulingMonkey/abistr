@@ -10,7 +10,7 @@ documentation   = "https://docs.rs/abistr"
 license         = "Apache-2.0 OR MIT"
 readme          = "Readme.md"
 description     = "C ABI compatible string types"
-keywords        = ["bool", "winapi"]
+keywords        = ["string", "str"]
 categories      = ["development-tools::ffi"]
 exclude         = [".vscode"]
 
