@@ -45,3 +45,4 @@ mod buffers;                            pub use buffers::*;
 mod errors;                             pub use errors::*;
 mod fmt;
 mod pointers;                           pub use pointers::*;
+mod try_into_as_traits;                 pub use try_into_as_traits::*;
