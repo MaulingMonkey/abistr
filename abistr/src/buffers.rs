@@ -26,9 +26,43 @@ use std::str::*;
 /// called multiple times.  While I believe I've guarded against unsoundness, such types would likely break guarantees
 /// that you might otherwise rely on for FFI.  So... don't.
 #[repr(transparent)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CStrBuf<B> {
     buffer: B,
+}
+
+impl<B: AsRef<[u8]> + AsMut<[u8]> + Default> CStrBuf<B> {
+    /// Create a [`CStrBuf`] from `data` + `\0`.  Will be truncated (with the `\0`) to fit if `data` is too long.
+    ///
+    /// ### Panics
+    ///
+    /// If `self.buffer.as_mut().is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
+    pub fn from_truncate(data: &(impl AsRef<[u8]> + ?Sized)) -> Self {
+        let mut s = Self::default();
+        let _ = s.set_truncate(data);
+        s
+    }
+
+    /// Create a [`CStrBuf`] from `data` + `\0`.  Will be truncated to fit if `data` is too long.  **Not** guaranteed to be `\0`-terminated!
+    pub unsafe fn from_truncate_without_nul(data: &(impl AsRef<[u8]> + ?Sized)) -> Self {
+        let mut s = Self::default();
+        let _ = s.set_truncate_without_nul(data);
+        s
+    }
+
+    /// Create a [`CStrBuf`] from `data` + `\0`.
+    pub fn try_from(data: &(impl AsRef<[u8]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
+        let mut s = Self::default();
+        s.try_set(data)?;
+        Ok(s)
+    }
+
+    /// Create a [`CStrBuf`] from `data` + `\0`.  Will succeed even if the `\0` doesn't fit.
+    pub unsafe fn try_from_without_nul(data: &(impl AsRef<[u8]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
+        let mut s = Self::default();
+        s.try_set_without_nul(data)?;
+        Ok(s)
+    }
 }
 
 impl<B: AsRef<[u8]>> CStrBuf<B> {
@@ -103,14 +137,60 @@ impl<B: AsMut<[u8]>> CStrBuf<B> {
         *buffer.last_mut().unwrap() = 0;
         unsafe { CStrNonNull::from_ptr_unchecked_unbounded(buffer.as_ptr().cast()) }
     }
+
+    /// Modifies the buffer to contain `data` + `\0`.
+    /// If `data` will not fit, it will be truncated with a final `\0` before returning <code>[Err]\([BufferTooSmallError]\)</code>.
+    ///
+    /// ### Panics
+    ///
+    /// If `self.buffer.as_mut().is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
+    pub fn set_truncate(&mut self, data: &(impl AsRef<[u8]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+        let src = data.as_ref();
+        let dst = self.buffer.as_mut();
+        let n = (dst.len()-1).min(src.len());
+        dst[..n].copy_from_slice(&src[..n]);
+        dst[n] = b'\0';
+        if src.len() >= dst.len() { Err(BufferTooSmallError(()))? }
+        Ok(())
+    }
+
+    /// Modifies the buffer to contain `data` + `\0`.
+    /// If `data` will not fit, it will be truncated - *without* a final `\0` - before returning <code>[Err]\([BufferTooSmallError]\)</code>.
+    pub unsafe fn set_truncate_without_nul(&mut self, data: &(impl AsRef<[u8]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+        let src = data.as_ref();
+        let dst = self.buffer.as_mut();
+        let n = dst.len().min(src.len());
+        dst[..n].copy_from_slice(&src[..n]);
+        if let Some(dst) = dst.get_mut(n) { *dst = b'\0'; }
+        if src.len() > dst.len() { Err(BufferTooSmallError(()))? }
+        Ok(())
+    }
+
+    /// Modifies the buffer to contain `data` + `\0`.
+    /// If `data` + '\0' will not fit, <code>[Err]\([BufferTooSmallError]\)</code> will be returned without modifying the underlying buffer.
+    pub fn try_set(&mut self, data: &(impl AsRef<[u8]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+        let src = data.as_ref();
+        let dst = self.buffer.as_mut();
+        if src.len() >= dst.len() { Err(BufferTooSmallError(()))? }
+        dst[..src.len()].copy_from_slice(src);
+        dst[src.len()] = b'\0';
+        Ok(())
+    }
+
+    /// Modifies the buffer to contain `data` (and a `\0` - but only if it will fit!)
+    /// If `data` will not fit, <code>[Err]\([BufferTooSmallError]\)</code> will be returned without modifying the underlying buffer.
+    pub unsafe fn try_set_without_nul(&mut self, data: &(impl AsRef<[u8]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+        let src = data.as_ref();
+        let dst = self.buffer.as_mut();
+        if src.len() > dst.len() { Err(BufferTooSmallError(()))? }
+        dst[..src.len()].copy_from_slice(src);
+        if let Some(dst) = dst.get_mut(src.len()) { *dst = b'\0'; }
+        Ok(())
+    }
 }
 
 impl<B: AsRef<[u8]>> Debug for CStrBuf<B> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(self.to_bytes(), f) }
-}
-
-impl<B: Default> Default for CStrBuf<B> {
-    fn default() -> Self { Self { buffer: Default::default() } }
 }
 
 
@@ -139,6 +219,67 @@ impl<B: Default> Default for CStrBuf<B> {
 
 
 
+#[test] fn from() {
+    type CB8 = CStrBuf<[u8; 8]>;
+    {
+        assert_eq!(CB8::from_truncate(b"1234567890").to_bytes(), b"1234567");
+    }
+    unsafe {
+        assert_eq!(CB8::from_truncate_without_nul(b"1234567890").to_bytes(), b"12345678");
+    }
+    {
+        assert_eq!(CB8::try_from(b"1234567890").is_err(), true);
+        assert_eq!(CB8::try_from(b"12345678"  ).is_err(), true);
+        assert_eq!(CB8::try_from(b"1234567"   ).unwrap().to_bytes(), b"1234567");
+    }
+    unsafe {
+        assert_eq!(CB8::try_from_without_nul(b"1234567890").is_err(), true);
+        assert_eq!(CB8::try_from_without_nul(b"12345678"  ).unwrap().to_bytes(), b"12345678");
+        assert_eq!(CB8::try_from_without_nul(b"1234567"   ).unwrap().to_bytes(), b"1234567");
+    }
+}
+
+
+
+#[test] fn set() {
+    type CB8 = CStrBuf<[u8; 8]>;
+    let reference = CB8::from_truncate(b"ref");
+    {
+        let mut cb = reference;
+        assert_eq!(cb.set_truncate(b"1234567890").is_err(), true);
+        assert_eq!(cb.to_bytes(), b"1234567");
+        assert_eq!(cb.set_truncate(b"1234").is_err(), false);
+        assert_eq!(cb.to_bytes(), b"1234");
+    }
+    unsafe {
+        let mut cb = reference;
+        assert_eq!(cb.set_truncate_without_nul(b"1234567890").is_err(), true);
+        assert_eq!(cb.to_bytes(), b"12345678");
+        assert_eq!(cb.set_truncate_without_nul(b"1234").is_err(), false);
+        assert_eq!(cb.to_bytes(), b"1234");
+    }
+    {
+        let mut cb = reference;
+        assert_eq!(cb.try_set(b"1234567890").is_err(), true);
+        assert_eq!(cb.to_bytes(), b"ref");
+        assert_eq!(cb.try_set(b"12345678").is_err(), true);
+        assert_eq!(cb.to_bytes(), b"ref");
+        assert_eq!(cb.try_set(b"1234").is_err(), false);
+        assert_eq!(cb.to_bytes(), b"1234");
+    }
+    unsafe {
+        let mut cb = reference;
+        assert_eq!(cb.try_set_without_nul(b"1234567890").is_err(), true);
+        assert_eq!(cb.to_bytes(), b"ref");
+        assert_eq!(cb.try_set_without_nul(b"12345678").is_err(), false);
+        assert_eq!(cb.to_bytes(), b"12345678");
+        assert_eq!(cb.try_set_without_nul(b"1234").is_err(), false);
+        assert_eq!(cb.to_bytes(), b"1234");
+    }
+}
+
+
+
 #[allow(overflowing_literals)]
 #[test] fn struct_interop() {
     use std::mem::*;
@@ -163,7 +304,6 @@ impl<B: Default> Default for CStrBuf<B> {
     c.empty2[0] = 0;
     c.not_unicode[0] = 0xFF as c_char;
     c.not_unicode[1] = 0xFF as c_char;
-    for (src, dst) in b"example\0".iter().zip(c.example.iter_mut()) { *dst = *src as c_char; }
 
     assert_abi_compatible!(R, C);
     #[repr(C)] struct R {
@@ -175,6 +315,7 @@ impl<B: Default> Default for CStrBuf<B> {
         not_unicode:    CStrBuf<[u8; 16]>,
     }
     let r : &mut R = unsafe { transmute(&mut c) };
+    r.example.try_set(b"example").unwrap();
     r.empty3 = Default::default(); // !!! MUTATION !!!
 
     assert_eq!(r.empty          .is_empty(), true);

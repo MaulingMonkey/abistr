@@ -4,6 +4,16 @@ use std::fmt::{self, Debug, Display, Formatter};
 
 
 
+/// The buffer in question is too small to contain the string in question
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BufferTooSmallError(pub(crate) ());
+
+impl Debug      for BufferTooSmallError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("BufferTooSmallError") } }
+impl Display    for BufferTooSmallError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("data provided is too large for the buffer") } }
+impl Error      for BufferTooSmallError { fn description(&self) -> &str { "data provided is too large for the buffer" } }
+
+
+
 /// The string in question contains no terminal `\0`
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NotNulTerminatedError(pub(crate) ());
