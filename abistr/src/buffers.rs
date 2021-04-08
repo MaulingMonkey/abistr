@@ -202,8 +202,8 @@ impl<B: Array> Debug for CStrBuf<B> {
 
 #[cfg(feature = "bytemuck")] mod _bytemuck {
     use super::*;
-    unsafe impl<B: bytemuck::Pod        > bytemuck::Pod         for CStrBuf<B> {}
-    unsafe impl<B: bytemuck::Zeroable   > bytemuck::Zeroable    for CStrBuf<B> {}
+    unsafe impl<B: Array + bytemuck::Pod        > bytemuck::Pod         for CStrBuf<B> {}
+    unsafe impl<B: Array + bytemuck::Zeroable   > bytemuck::Zeroable    for CStrBuf<B> {}
 }
 
 
