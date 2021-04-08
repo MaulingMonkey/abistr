@@ -8,7 +8,7 @@ use std::str::*;
 
 
 
-/// <code>[CStrBuf]<\[[u8]; 128\]></code> is ABI compatible with <code>\[[c_char]; 128\]</code>.
+/// <code>[CStrBuf]<\[[Unit]; 128\]></code> is ABI compatible with <code>\[[Unit]; 128\]</code>.
 ///
 /// ### Safety
 ///
@@ -26,75 +26,152 @@ use std::str::*;
 /// called multiple times.  While I believe I've guarded against unsoundness, such types would likely break guarantees
 /// that you might otherwise rely on for FFI.  So... don't.
 #[repr(transparent)]
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CStrBuf<B> {
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CStrBuf<B: Array> {
     buffer: B,
 }
 
-impl<B: AsRef<[u8]> + AsMut<[u8]> + Default> CStrBuf<B> {
+impl<B: Array> CStrBuf<B> {
     /// Create a [`CStrBuf`] from `data` + `\0`.  Will be truncated (with the `\0`) to fit if `data` is too long.
     ///
     /// ### Panics
     ///
-    /// If `self.buffer.as_mut().is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
-    pub fn from_truncate(data: &(impl AsRef<[u8]> + ?Sized)) -> Self {
+    /// If `self.buffer.is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
+    pub fn from_truncate(data: &(impl AsRef<[B::Unit]> + ?Sized)) -> Self {
         let mut s = Self::default();
         let _ = s.set_truncate(data);
         s
     }
 
     /// Create a [`CStrBuf`] from `data` + `\0`.  Will be truncated to fit if `data` is too long.  **Not** guaranteed to be `\0`-terminated!
-    pub unsafe fn from_truncate_without_nul(data: &(impl AsRef<[u8]> + ?Sized)) -> Self {
+    pub unsafe fn from_truncate_without_nul(data: &(impl AsRef<[B::Unit]> + ?Sized)) -> Self {
         let mut s = Self::default();
         let _ = s.set_truncate_without_nul(data);
         s
     }
 
     /// Create a [`CStrBuf`] from `data` + `\0`.
-    pub fn try_from(data: &(impl AsRef<[u8]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
+    pub fn try_from(data: &(impl AsRef<[B::Unit]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
         let mut s = Self::default();
         s.try_set(data)?;
         Ok(s)
     }
 
     /// Create a [`CStrBuf`] from `data` + `\0`.  Will succeed even if the `\0` doesn't fit.
-    pub unsafe fn try_from_without_nul(data: &(impl AsRef<[u8]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
+    pub unsafe fn try_from_without_nul(data: &(impl AsRef<[B::Unit]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
         let mut s = Self::default();
         s.try_set_without_nul(data)?;
         Ok(s)
     }
-}
 
-impl<B: AsRef<[u8]>> CStrBuf<B> {
     /// Access the underlying byte buffer of `self`
-    pub fn buffer(&self) -> &[u8] { self.buffer.as_ref() }
+    pub fn buffer(&self) -> &[B::Unit] { self.buffer.as_slice() }
 
     /// Checks if `self` is empty (e.g. the first character is `\0`.)
-    pub fn is_empty(&self) -> bool { self.buffer.as_ref().first().copied() == Some(0) }
+    pub fn is_empty(&self) -> bool { self.buffer.as_slice().first().copied() == Some(private::Unit::NUL) }
 
-    /// Get the bytes of the string portion of the buffer.  This will not contain any `\0` characters, and is not guaranteed to have a `\0` after the slice!
+    /// Get the code units of the string portion of the buffer.  This will not contain any `\0` characters, and is not guaranteed to have a `\0` after the slice!
     ///
     /// `O(n)` to locate the terminal `\0`.
-    pub fn to_bytes(&self) -> &[u8] {
-        let buffer = self.buffer.as_ref();
-        match buffer.iter().copied().position(|ch| ch == 0) {
+    pub fn to_units(&self) -> &[B::Unit] {
+        let buffer = self.buffer.as_slice();
+        match buffer.iter().copied().position(|ch| ch == private::Unit::NUL) {
             Some(nul)   => &buffer[..nul],
             None        => buffer,
         }
     }
 
-    /// Get the bytes of the string portion of the buffer, including the terminal `\0`.
+    /// Get the code units of the string portion of the buffer, including the terminal `\0`.
     /// Since the buffer might not *contain* a terminal `\0`, this may fail.
     /// You might prefer [`to_bytes`](Self::to_bytes), which cannot fail.
     ///
     /// `O(n)` to locate the terminal `\0`.
-    pub fn to_bytes_with_nul(&self) -> Result<&[u8], NotNulTerminatedError> {
-        let buffer = self.buffer.as_ref();
-        match buffer.iter().copied().position(|ch| ch == 0) {
+    pub fn to_units_with_nul(&self) -> Result<&[B::Unit], NotNulTerminatedError> {
+        let buffer = self.buffer.as_slice();
+        match buffer.iter().copied().position(|ch| ch == private::Unit::NUL) {
             Some(nul)   => Ok(&buffer[..=nul]),
             None        => Err(NotNulTerminatedError(())),
         }
     }
+
+    /// Ensure the buffer is `\0`-terminated, returning <code>[Err]\([NotNulTerminatedError]\)</code> otherwise.
+    ///
+    /// `O(n)` to locate the terminal `\0`.
+    pub fn validate(&self) -> Result<(), NotNulTerminatedError> { self.to_units_with_nul().map(|_| ()) }
+
+    /// Access the underlying byte buffer of `self`.
+    ///
+    /// ### Safety
+    ///
+    /// Many C APIs assume the underlying buffer is `\0`-terminated, and this method would let you change that.
+    /// However, it's worth noting that [`CStrBuf`] technically makes no such guarantee!
+    pub unsafe fn buffer_mut(&mut self) -> &mut [B::Unit] { self.buffer.as_slice_mut() }
+
+    /// Ensure the buffer is `\0`-terminated by setting the last character to be `\0`.
+    ///
+    /// ### Panics
+    ///
+    /// If `self.buffer.is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
+    pub fn nul_truncate(&mut self) -> CStrNonNull {
+        let buffer = self.buffer.as_slice_mut();
+        *buffer.last_mut().unwrap() = private::Unit::NUL;
+        unsafe { CStrNonNull::from_ptr_unchecked_unbounded(buffer.as_ptr().cast()) }
+    }
+
+    /// Modifies the buffer to contain `data` + `\0`.
+    /// If `data` will not fit, it will be truncated with a final `\0` before returning <code>[Err]\([BufferTooSmallError]\)</code>.
+    ///
+    /// ### Panics
+    ///
+    /// If `self.buffer.as_slice_mut().is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
+    pub fn set_truncate(&mut self, data: &(impl AsRef<[B::Unit]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+        let src = data.as_ref();
+        let dst = self.buffer.as_slice_mut();
+        let n = (dst.len()-1).min(src.len());
+        dst[..n].copy_from_slice(&src[..n]);
+        dst[n] = private::Unit::NUL;
+        if src.len() >= dst.len() { Err(BufferTooSmallError(()))? }
+        Ok(())
+    }
+
+    /// Modifies the buffer to contain `data` + `\0`.
+    /// If `data` will not fit, it will be truncated - *without* a final `\0` - before returning <code>[Err]\([BufferTooSmallError]\)</code>.
+    pub unsafe fn set_truncate_without_nul(&mut self, data: &(impl AsRef<[B::Unit]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+        let src = data.as_ref();
+        let dst = self.buffer.as_slice_mut();
+        let n = dst.len().min(src.len());
+        dst[..n].copy_from_slice(&src[..n]);
+        if let Some(dst) = dst.get_mut(n) { *dst = private::Unit::NUL; }
+        if src.len() > dst.len() { Err(BufferTooSmallError(()))? }
+        Ok(())
+    }
+
+    /// Modifies the buffer to contain `data` + `\0`.
+    /// If `data` + '\0' will not fit, <code>[Err]\([BufferTooSmallError]\)</code> will be returned without modifying the underlying buffer.
+    pub fn try_set(&mut self, data: &(impl AsRef<[B::Unit]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+        let src = data.as_ref();
+        let dst = self.buffer.as_slice_mut();
+        if src.len() >= dst.len() { Err(BufferTooSmallError(()))? }
+        dst[..src.len()].copy_from_slice(src);
+        dst[src.len()] = private::Unit::NUL;
+        Ok(())
+    }
+
+    /// Modifies the buffer to contain `data` (and a `\0` - but only if it will fit!)
+    /// If `data` will not fit, <code>[Err]\([BufferTooSmallError]\)</code> will be returned without modifying the underlying buffer.
+    pub unsafe fn try_set_without_nul(&mut self, data: &(impl AsRef<[B::Unit]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+        let src = data.as_ref();
+        let dst = self.buffer.as_slice_mut();
+        if src.len() > dst.len() { Err(BufferTooSmallError(()))? }
+        dst[..src.len()].copy_from_slice(src);
+        if let Some(dst) = dst.get_mut(src.len()) { *dst = private::Unit::NUL; }
+        Ok(())
+    }
+}
+
+impl<B: Array<Unit = u8>> CStrBuf<B> {
+    #[doc(hidden)] pub fn to_bytes(&self) -> &[u8] { self.to_units() } // legacy alias for 0.1.1
+    #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> Result<&[u8], NotNulTerminatedError> { self.to_units_with_nul() } // legacy alias for 0.1.1
 
     /// Attempt to convert the buffer to a [`CStr`], returning <code>[Err]\([NotNulTerminatedError]\)</code> instead if the underlying buffer isn't `\0`-terminated.
     /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
@@ -111,86 +188,14 @@ impl<B: AsRef<[u8]>> CStrBuf<B> {
     ///
     /// `O(n)` to locate the terminal `\0`.
     pub fn to_string_lossy(&self) -> Cow<'_, str> { String::from_utf8_lossy(self.to_bytes()) }
-
-    /// Ensure the buffer is `\0`-terminated, returning <code>[Err]\([NotNulTerminatedError]\)</code> otherwise.
-    ///
-    /// `O(n)` to locate the terminal `\0`.
-    pub fn validate(&self) -> Result<(), NotNulTerminatedError> { self.to_bytes_with_nul().map(|_| ()) }
 }
 
-impl<B: AsMut<[u8]>> CStrBuf<B> {
-    /// Access the underlying byte buffer of `self`.
-    ///
-    /// ### Safety
-    ///
-    /// Many C APIs assume the underlying buffer is `\0`-terminated, and this method would let you change that.
-    /// However, it's worth noting that [`CStrBuf`] technically makes no such guarantee!
-    pub unsafe fn buffer_mut(&mut self) -> &mut [u8] { self.buffer.as_mut() }
-
-    /// Ensure the buffer is `\0`-terminated by setting the last character to be `\0`.
-    ///
-    /// ### Panics
-    ///
-    /// If `self.buffer.as_mut().is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
-    pub fn nul_truncate(&mut self) -> CStrNonNull {
-        let buffer = self.buffer.as_mut();
-        *buffer.last_mut().unwrap() = 0;
-        unsafe { CStrNonNull::from_ptr_unchecked_unbounded(buffer.as_ptr().cast()) }
-    }
-
-    /// Modifies the buffer to contain `data` + `\0`.
-    /// If `data` will not fit, it will be truncated with a final `\0` before returning <code>[Err]\([BufferTooSmallError]\)</code>.
-    ///
-    /// ### Panics
-    ///
-    /// If `self.buffer.as_mut().is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
-    pub fn set_truncate(&mut self, data: &(impl AsRef<[u8]> + ?Sized)) -> Result<(), BufferTooSmallError> {
-        let src = data.as_ref();
-        let dst = self.buffer.as_mut();
-        let n = (dst.len()-1).min(src.len());
-        dst[..n].copy_from_slice(&src[..n]);
-        dst[n] = b'\0';
-        if src.len() >= dst.len() { Err(BufferTooSmallError(()))? }
-        Ok(())
-    }
-
-    /// Modifies the buffer to contain `data` + `\0`.
-    /// If `data` will not fit, it will be truncated - *without* a final `\0` - before returning <code>[Err]\([BufferTooSmallError]\)</code>.
-    pub unsafe fn set_truncate_without_nul(&mut self, data: &(impl AsRef<[u8]> + ?Sized)) -> Result<(), BufferTooSmallError> {
-        let src = data.as_ref();
-        let dst = self.buffer.as_mut();
-        let n = dst.len().min(src.len());
-        dst[..n].copy_from_slice(&src[..n]);
-        if let Some(dst) = dst.get_mut(n) { *dst = b'\0'; }
-        if src.len() > dst.len() { Err(BufferTooSmallError(()))? }
-        Ok(())
-    }
-
-    /// Modifies the buffer to contain `data` + `\0`.
-    /// If `data` + '\0' will not fit, <code>[Err]\([BufferTooSmallError]\)</code> will be returned without modifying the underlying buffer.
-    pub fn try_set(&mut self, data: &(impl AsRef<[u8]> + ?Sized)) -> Result<(), BufferTooSmallError> {
-        let src = data.as_ref();
-        let dst = self.buffer.as_mut();
-        if src.len() >= dst.len() { Err(BufferTooSmallError(()))? }
-        dst[..src.len()].copy_from_slice(src);
-        dst[src.len()] = b'\0';
-        Ok(())
-    }
-
-    /// Modifies the buffer to contain `data` (and a `\0` - but only if it will fit!)
-    /// If `data` will not fit, <code>[Err]\([BufferTooSmallError]\)</code> will be returned without modifying the underlying buffer.
-    pub unsafe fn try_set_without_nul(&mut self, data: &(impl AsRef<[u8]> + ?Sized)) -> Result<(), BufferTooSmallError> {
-        let src = data.as_ref();
-        let dst = self.buffer.as_mut();
-        if src.len() > dst.len() { Err(BufferTooSmallError(()))? }
-        dst[..src.len()].copy_from_slice(src);
-        if let Some(dst) = dst.get_mut(src.len()) { *dst = b'\0'; }
-        Ok(())
-    }
+impl<B: Array> Default for CStrBuf<B> {
+    fn default() -> Self { Self { buffer: private::Array::zeroed() } }
 }
 
-impl<B: AsRef<[u8]>> Debug for CStrBuf<B> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(self.to_bytes(), f) }
+impl<B: Array> Debug for CStrBuf<B> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { private::Unit::debug(self.to_units(), f) }
 }
 
 
@@ -215,6 +220,30 @@ impl<B: AsRef<[u8]>> Debug for CStrBuf<B> {
     assert_abi_compatible!([c_char; 16], CStrBuf<[u8; 16]>);
     assert_abi_compatible!([c_char; 24], CStrBuf<[u8; 24]>);
     assert_abi_compatible!([c_char; 99], CStrBuf<[u8; 99]>);
+
+    #[allow(non_camel_case_types)] type char16_t = u16; // could also be wchar_t on windows, unichar on iOS, etc.
+    assert_abi_compatible!([char16_t;  1], CStrBuf<[char16_t;  1]>);
+    assert_abi_compatible!([char16_t;  2], CStrBuf<[char16_t;  2]>);
+    assert_abi_compatible!([char16_t;  3], CStrBuf<[char16_t;  3]>);
+    assert_abi_compatible!([char16_t;  4], CStrBuf<[char16_t;  4]>);
+    assert_abi_compatible!([char16_t;  6], CStrBuf<[char16_t;  6]>);
+    assert_abi_compatible!([char16_t;  8], CStrBuf<[char16_t;  8]>);
+    assert_abi_compatible!([char16_t; 12], CStrBuf<[char16_t; 12]>);
+    assert_abi_compatible!([char16_t; 16], CStrBuf<[char16_t; 16]>);
+    assert_abi_compatible!([char16_t; 24], CStrBuf<[char16_t; 24]>);
+    assert_abi_compatible!([char16_t; 99], CStrBuf<[char16_t; 99]>);
+
+    #[allow(non_camel_case_types)] type char32_t = u32; // could also be wchar_t on *nix
+    assert_abi_compatible!([char32_t;  1], CStrBuf<[char32_t;  1]>);
+    assert_abi_compatible!([char32_t;  2], CStrBuf<[char32_t;  2]>);
+    assert_abi_compatible!([char32_t;  3], CStrBuf<[char32_t;  3]>);
+    assert_abi_compatible!([char32_t;  4], CStrBuf<[char32_t;  4]>);
+    assert_abi_compatible!([char32_t;  6], CStrBuf<[char32_t;  6]>);
+    assert_abi_compatible!([char32_t;  8], CStrBuf<[char32_t;  8]>);
+    assert_abi_compatible!([char32_t; 12], CStrBuf<[char32_t; 12]>);
+    assert_abi_compatible!([char32_t; 16], CStrBuf<[char32_t; 16]>);
+    assert_abi_compatible!([char32_t; 24], CStrBuf<[char32_t; 24]>);
+    assert_abi_compatible!([char32_t; 99], CStrBuf<[char32_t; 99]>);
 }
 
 

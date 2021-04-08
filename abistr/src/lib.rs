@@ -10,6 +10,17 @@
 //! | `const char*`                             | <code>[Option]<[abistr::CStrNonNull]></code>  | [`None`]
 //! | `const char* __attribute__((nonnull))`    | <code>[abistr::CStrNonNull]</code>            | ❌ undefined behavior ❌
 //! | `char struct_member[128];`                | <code>[abistr::CStrBuf]<\[[u8]; 128\]></code> | <span style="opacity: 33%">N/A</span>
+//! | **C++20**                                 | **ABI compatible Rust**
+//! | `char8_t  struct_member[128];`            | <code>[abistr::CStrBuf]<\[[u8];  128\]></code>| <span style="opacity: 33%">N/A</span>
+//! | `char16_t struct_member[128];`            | <code>[abistr::CStrBuf]<\[[u16]; 128\]></code>| <span style="opacity: 33%">N/A</span>
+//! | `char32_t struct_member[128];`            | <code>[abistr::CStrBuf]<\[[u32]; 128\]></code>| <span style="opacity: 33%">N/A</span>
+//! | **iOS, OS X**                             | **ABI compatible Rust**
+//! | `unichar struct_member[128];`             | <code>[abistr::CStrBuf]<\[[u16]; 128\]></code>| <span style="opacity: 33%">N/A</span>
+//! | `wchar_t struct_member[128];`             | <code>[abistr::CStrBuf]<\[[u32]; 128\]></code>| <span style="opacity: 33%">N/A</span>
+//! | **Linux**                                 | **ABI compatible Rust**
+//! | `wchar_t struct_member[128];`             | <code>[abistr::CStrBuf]<\[[u32]; 128\]></code>| <span style="opacity: 33%">N/A</span>
+//! | **Windows**                               | **ABI compatible Rust**
+//! | `wchar_t struct_member[128];`             | <code>[abistr::CStrBuf]<\[[u16]; 128\]></code>| <span style="opacity: 33%">N/A</span>
 //!
 //! # Alternatives
 //!
@@ -40,9 +51,16 @@
 
 #[macro_use] mod macros;
 
+mod array;                              pub use array::*;
 mod as_traits;                          pub use as_traits::*;
 mod buffers;                            pub use buffers::*;
 mod errors;                             pub use errors::*;
 mod fmt;
 mod pointers;                           pub use pointers::*;
 mod try_into_as_traits;                 pub use try_into_as_traits::*;
+mod unit;                               pub use unit::*;
+
+pub(crate) mod private {
+    pub use crate::array::private::*;
+    pub use crate::unit::private::*;
+}
