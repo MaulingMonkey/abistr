@@ -9,7 +9,7 @@
 //! | `const char *`                                | <code>[abistr::CStrPtr]</code>                        | `""`
 //! | `const char *`                                | <code>[Option]<[abistr::CStrNonNull]></code>          | [`None`]
 //! | `const char * __attribute__((nonnull))`       | <code>[abistr::CStrNonNull]</code>                    | ❌ undefined ❌
-//! | `char struct_member[128];`                    | <code>[abistr::CStrBuf]<\[[u8]; 128\]></code>         | <span style="opacity: 33%">N/A</span>
+//! | `char struct_member[128];`                    | <code>[abistr::CStrBuf]<[u8], 128></code>             | <span style="opacity: 33%">N/A</span>
 //! | **C++20**                                     | **ABI compatible Rust**
 //! | `const char8_t  *`                            | <code>[abistr::CStrPtr]<[u8] ></code>                 | `""`
 //! | `const char16_t *`                            | <code>[abistr::CStrPtr]<[u16]></code>                 | `""`
@@ -20,9 +20,9 @@
 //! | `const char8_t  * __attribute__((nonnull))`   | <code>[abistr::CStrNonNull]<[u8] ></code>             | ❌ undefined ❌
 //! | `const char16_t * __attribute__((nonnull))`   | <code>[abistr::CStrNonNull]<[u16]></code>             | ❌ undefined ❌
 //! | `const char32_t * __attribute__((nonnull))`   | <code>[abistr::CStrNonNull]<[u32]></code>             | ❌ undefined ❌
-//! | `char8_t  struct_member[128];`                | <code>[abistr::CStrBuf]<\[[u8];  128\]></code>        | <span style="opacity: 33%">N/A</span>
-//! | `char16_t struct_member[128];`                | <code>[abistr::CStrBuf]<\[[u16]; 128\]></code>        | <span style="opacity: 33%">N/A</span>
-//! | `char32_t struct_member[128];`                | <code>[abistr::CStrBuf]<\[[u32]; 128\]></code>        | <span style="opacity: 33%">N/A</span>
+//! | `char8_t  struct_member[128];`                | <code>[abistr::CStrBuf]<[u8],  128></code>            | <span style="opacity: 33%">N/A</span>
+//! | `char16_t struct_member[128];`                | <code>[abistr::CStrBuf]<[u16], 128></code>            | <span style="opacity: 33%">N/A</span>
+//! | `char32_t struct_member[128];`                | <code>[abistr::CStrBuf]<[u32], 128></code>            | <span style="opacity: 33%">N/A</span>
 //! | **iOS, OS X**                                 | **ABI compatible Rust**
 //! | `const unichar *`                             | <code>[abistr::CStrPtr]<[u16]></code>                 | `""`
 //! | `const wchar_t *`                             | <code>[abistr::CStrPtr]<[u32]></code>                 | `""`
@@ -30,18 +30,18 @@
 //! | `const wchar_t *`                             | <code>[Option]<[abistr::CStrPtr]<[u32]>></code>       | [`None`]
 //! | `const unichar * __attribute__((nonnull))`    | <code>[abistr::CStrNonNull]<[u16]></code>             | ❌ undefined ❌
 //! | `const wchar_t * __attribute__((nonnull))`    | <code>[abistr::CStrNonNull]<[u32]></code>             | ❌ undefined ❌
-//! | `unichar struct_member[128];`                 | <code>[abistr::CStrBuf]<\[[u16]; 128\]></code>        | <span style="opacity: 33%">N/A</span>
-//! | `wchar_t struct_member[128];`                 | <code>[abistr::CStrBuf]<\[[u32]; 128\]></code>        | <span style="opacity: 33%">N/A</span>
+//! | `unichar struct_member[128];`                 | <code>[abistr::CStrBuf]<[u16], 128></code>            | <span style="opacity: 33%">N/A</span>
+//! | `wchar_t struct_member[128];`                 | <code>[abistr::CStrBuf]<[u32], 128></code>            | <span style="opacity: 33%">N/A</span>
 //! | **Linux**                                     | **ABI compatible Rust**
 //! | `const wchar_t *`                             | <code>[abistr::CStrPtr]<[u32]></code>                 | `""`
 //! | `const wchar_t *`                             | <code>[Option]<[abistr::CStrPtr]<[u32]>></code>       | [`None`]
 //! | `const wchar_t * __attribute__((nonnull))`    | <code>[abistr::CStrNonNull]<[u32]></code>             | ❌ undefined ❌
-//! | `wchar_t struct_member[128];`                 | <code>[abistr::CStrBuf]<\[[u32]; 128\]></code>        | <span style="opacity: 33%">N/A</span>
+//! | `wchar_t struct_member[128];`                 | <code>[abistr::CStrBuf]<[u32], 128></code>            | <span style="opacity: 33%">N/A</span>
 //! | **Windows**                                   | **ABI compatible Rust**
 //! | `const wchar_t *`                             | <code>[abistr::CStrPtr]<[u16]></code>                 | `""`
 //! | `const wchar_t *`                             | <code>[Option]<[abistr::CStrPtr]<[u16]>></code>       | [`None`]
 //! | `const wchar_t * __attribute__((nonnull))`    | <code>[abistr::CStrNonNull]<[u16]></code>             | ❌ undefined ❌
-//! | `wchar_t struct_member[128];`                 | <code>[abistr::CStrBuf]<\[[u16]; 128\]></code>        | <span style="opacity: 33%">N/A</span>
+//! | `wchar_t struct_member[128];`                 | <code>[abistr::CStrBuf]<[u16], 128></code>            | <span style="opacity: 33%">N/A</span>
 //!
 //! # Alternatives
 //!
@@ -72,7 +72,6 @@
 
 #[macro_use] mod macros;
 
-mod array;                              pub use array::*;
 mod as_traits;                          pub use as_traits::*;
 mod buffers;                            pub use buffers::*;
 mod errors;                             pub use errors::*;
@@ -82,6 +81,5 @@ mod try_into_as_traits;                 pub use try_into_as_traits::*;
 mod unit;                               pub use unit::*;
 
 pub(crate) mod private {
-    pub use crate::array::private::*;
     pub use crate::unit::private::*;
 }
