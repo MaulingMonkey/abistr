@@ -18,17 +18,52 @@ impl Unit for u16 {}
 impl Unit for u32 {}
 
 pub(crate) mod private {
+    use std::borrow::Cow;
+    use std::char::REPLACEMENT_CHARACTER;
     use std::fmt::{self, Formatter};
+    use std::os::raw::c_char;
 
     /// ### Safety
     ///
     /// *   It must be safe to initialize an array of these via `unsafe { std::mem::zeroed() }`
-    pub unsafe trait Unit : Default + Copy + PartialEq {
+    pub unsafe trait Unit : Default + Copy + PartialEq + 'static {
+        type CChar : 'static; // XXX: eliminate?
         const NUL : Self;
+        const EMPTY : &'static [Self; 1];
         fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result;
+        fn to_string_lossy(buf: &[Self]) -> Cow<str>;
     }
 
-    unsafe impl Unit for u8  { const NUL : Self = 0; fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(buf, fmt) } }
-    unsafe impl Unit for u16 { const NUL : Self = 0; fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result { crate::fmt::c16_units(buf, fmt) } }
-    unsafe impl Unit for u32 { const NUL : Self = 0; fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result { crate::fmt::c32_units(buf, fmt) } }
+    unsafe impl Unit for u8 {
+        type CChar = c_char;
+        const NUL : Self = 0;
+        const EMPTY : &'static [Self; 1] = &[0];
+        fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(buf, fmt) }
+        fn to_string_lossy(buf: &[Self]) -> Cow<str> { String::from_utf8_lossy(buf) }
+    }
+
+    unsafe impl Unit for u16 {
+        type CChar = Self;
+        const NUL : Self = 0;
+        const EMPTY : &'static [Self; 1] = &[0];
+        fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result { crate::fmt::c16_units(buf, fmt) }
+        fn to_string_lossy(buf: &[Self]) -> Cow<str> { Cow::Owned(String::from_utf16_lossy(buf)) }
+    }
+
+    unsafe impl Unit for u32 {
+        type CChar = Self;
+        const NUL : Self = 0;
+        const EMPTY : &'static [Self; 1] = &[0];
+        fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result { crate::fmt::c32_units(buf, fmt) }
+        fn to_string_lossy(buf: &[Self]) -> Cow<str> { Cow::Owned(buf.iter().copied().map(|ch| std::char::from_u32(ch).unwrap_or(REPLACEMENT_CHARACTER)).collect::<String>()) }
+    }
+}
+
+pub(crate) unsafe fn strlen<U: Unit>(mut str: *const U) -> usize {
+    let mut n = 0;
+    loop {
+        if *str == U::NUL { return n; }
+        n += 1;
+        str = str.offset(1);
+    }
 }

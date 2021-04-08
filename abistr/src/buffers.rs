@@ -167,6 +167,11 @@ impl<B: Array> CStrBuf<B> {
         if let Some(dst) = dst.get_mut(src.len()) { *dst = private::Unit::NUL; }
         Ok(())
     }
+
+    /// Convert the buffer to a <code>&[str]</code>, allocating and replacing invalid UTF8 with [`U+FFFD REPLACEMENT CHARACTER`][std::char::REPLACEMENT_CHARACTER] if necessary.
+    ///
+    /// `O(n)` to locate the terminal `\0`.
+    pub fn to_string_lossy(&self) -> Cow<'_, str> { private::Unit::to_string_lossy(self.to_units()) }
 }
 
 impl<B: Array<Unit = u8>> CStrBuf<B> {
@@ -183,11 +188,6 @@ impl<B: Array<Unit = u8>> CStrBuf<B> {
     ///
     /// `O(n)` to locate the terminal `\0`.
     pub fn to_str(&self) -> Result<&str, Utf8Error> { from_utf8(self.to_bytes()) }
-
-    /// Convert the buffer to a <code>&[str]</code>, allocating and replacing invalid UTF8 with [`U+FFFD REPLACEMENT CHARACTER`][std::char::REPLACEMENT_CHARACTER] if necessary.
-    ///
-    /// `O(n)` to locate the terminal `\0`.
-    pub fn to_string_lossy(&self) -> Cow<'_, str> { String::from_utf8_lossy(self.to_bytes()) }
 }
 
 impl<B: Array> Default for CStrBuf<B> {

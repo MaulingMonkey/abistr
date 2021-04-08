@@ -50,6 +50,7 @@ pub(super) fn cstr_impl(input: TokenStream) -> TokenStream {
         ttid("CStrNonNull", s),
         ttp(':', Spacing::Joint, s),
         ttp(':', Spacing::Joint, s),
+        // XXX: rename
         ttid("zzz_unsound_do_not_call_this_directly_from_macro_bytes_with_nul", s),
         ttg(Delimiter::Parenthesis, s, vec![parsed_literal])
     ].into_iter());

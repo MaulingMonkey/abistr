@@ -27,3 +27,18 @@ impl From<NotNulTerminatedError> for FromBytesWithNulError {
         CStr::from_bytes_with_nul(&[]).unwrap_err()
     }
 }
+
+impl From<NotNulTerminatedError> for FromUnitsWithNulError {
+    fn from(_: NotNulTerminatedError) -> FromUnitsWithNulError {
+        FromUnitsWithNulError(())
+    }
+}
+
+
+
+/// The string in question contains no terminal `\0`, or contains an interior `\0`.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FromUnitsWithNulError(pub(crate) ());
+impl Debug      for FromUnitsWithNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("FromUnitsWithNulError") } }
+impl Display    for FromUnitsWithNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("data provided is not nul terminated, or contains interior nuls") } }
+impl Error      for FromUnitsWithNulError { fn description(&self) -> &str { "data provided is not nul terminated, or contains interior nuls" } }

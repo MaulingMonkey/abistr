@@ -1,24 +1,26 @@
+use crate::*;
+
 use std::borrow::Cow;
 use std::ffi::*;
 use std::fmt::{self, Debug, Formatter};
 use std::marker::PhantomData;
-use std::os::raw::c_char;
+#[allow(unused_imports)] use std::os::raw::c_char;
 use std::ptr::*;
 use std::str::Utf8Error;
 
 
 
-/// [`CStrPtr`] is ABI compatible with `*const c_char`.  <code>[null]\(\)</code> is treated as an empty string.
+/// <code>[CStrPtr]&lt;[Unit]&gt;</code> is ABI compatible with <code>*const [Unit]</code>.  <code>[null]\(\)</code> is treated as an empty string.
 ///
 /// If you want to treat <code>[null]\(\)</code> as [`None`], use <code>[Option]<[CStrNonNull]></code> instead.
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct CStrPtr<'s> {
-    ptr:        *const c_char,
-    phantom:    PhantomData<&'s c_char>,
+pub struct CStrPtr<'s, U: Unit = u8> {
+    ptr:        *const U::CChar,
+    phantom:    PhantomData<&'s U::CChar>,
 }
 
-impl<'s> CStrPtr<'s> {
+impl<'s, U: Unit> CStrPtr<'s, U> {
     /// A <code>[null]\(\)</code> [CStrPtr].
     pub const NULL : Self = Self { ptr: 0 as *const _, phantom: PhantomData };
 
@@ -29,40 +31,63 @@ impl<'s> CStrPtr<'s> {
     /// *   `ptr` must point to a `\0`-terminated C string
     /// *   The underlying C-string cannot change for the duration of the lifetime `'s`.
     /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally extend.  Be careful!
-    pub unsafe fn from_ptr_unbounded(ptr: *const c_char) -> Self { Self { ptr, phantom: PhantomData } }
+    pub unsafe fn from_ptr_unbounded(ptr: *const U::CChar) -> Self { Self { ptr, phantom: PhantomData } }
 
-    /// Convert a raw slice of bytes into a [`CStrPtr`].  `bytes` should end with `\0`, but contain no interior `\0`s otherwise.
-    pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromBytesWithNulError> {
-        CStr::from_bytes_with_nul(bytes).map(Self::from)
+    /// Convert a raw slice of units into a [`CStrPtr`].  `units` should end with `\0`, but contain no interior `\0`s otherwise.
+    pub fn from_units_with_nul(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> {
+        let (nul, interior) = units.split_last().ok_or(FromUnitsWithNulError(()))?;
+        if *nul != U::NUL { return Err(FromUnitsWithNulError(())); }
+        if interior.contains(&U::NUL) { return Err(FromUnitsWithNulError(())); }
+        Ok(unsafe { Self::from_ptr_unbounded(units.as_ptr().cast()) })
     }
 
-    /// Convert a raw slice of bytes to a [`CStrPtr`].  The resulting string will be terminated at the first `\0` in `bytes`.
+    /// Convert a raw slice of units to a [`CStrPtr`].  The resulting string will be terminated at the first `\0` in `units`.
     ///
     /// ### Safety
-    /// *   `bytes` must contain at least one `\0`.
-    pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self {
-        debug_assert!(bytes.contains(&0), "Undefined Behavior: `bytes` contained no `\0`!");
-        Self::from_ptr_unbounded(bytes.as_ptr() as *const _)
+    /// *   `units` must contain at least one `\0`.
+    pub unsafe fn from_units_with_nul_unchecked(units: &'s [U]) -> Self {
+        debug_assert!(units.contains(&U::NUL), "Undefined Behavior: `units` contained no `\0`!");
+        Self::from_ptr_unbounded(units.as_ptr() as *const _)
     }
 
     /// Treat `self` as a raw, possibly <code>[null]\(\)</code> C string.
-    pub fn as_ptr(&self) -> *const c_char { self.ptr }
+    pub fn as_ptr(&self) -> *const U::CChar { self.ptr.cast() }
 
     /// Checks if `self` is <code>[null]\(\)</code>.
     pub fn is_null(&self) -> bool { self.ptr.is_null() }
 
     /// Checks if `self` is empty (either null, or the first character is `\0`.)
-    pub fn is_empty(&self) -> bool { self.ptr.is_null() || 0 == unsafe { *self.ptr } }
+    pub fn is_empty(&self) -> bool { self.ptr.is_null() || U::NUL == unsafe { *self.ptr.cast() } }
 
-    /// Convert `self` to a <code>&\[[u8]\]</code> slice, **excluding** the terminal `\0`.
+    /// Convert `self` to a <code>&\[[Unit]\]</code> slice, **excluding** the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_bytes(&self) -> &'s [u8] { self.to_cstr().to_bytes() }
+    pub fn to_units(&self) -> &'s [U] {
+        if self.ptr.is_null() { return &[]; }
+        let start = self.ptr.cast();
+        unsafe { std::slice::from_raw_parts(start, strlen(start)) }
+    }
 
-    /// Convert `self` to a <code>&\[[u8]\]</code> slice, including the terminal `\0`.
+    /// Convert `self` to a <code>&\[[Unit]\]</code> slice, including the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_cstr().to_bytes_with_nul() }
+    pub fn to_units_with_nul(&self) -> &'s [U] {
+        if self.ptr.is_null() { return U::EMPTY; }
+        let start = self.ptr.cast();
+        unsafe { std::slice::from_raw_parts(start, strlen(start) + 1) }
+    }
+
+    /// Convert `self` to a <code>[Cow]\<[str]\></code>.
+    ///
+    /// `O(n)` to find the terminal `\0` and validate, and to convert UTF8ish data to UTF8 if necesssary.
+    pub fn to_string_lossy(&self) -> Cow<'s, str> { U::to_string_lossy(self.to_units()) }
+}
+
+impl<'s> CStrPtr<'s, u8> {
+    #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromBytesWithNulError> { CStr::from_bytes_with_nul(bytes).map(Self::from) }
+    #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { Self::from_units_with_nul_unchecked(bytes) }
+    #[doc(hidden)] pub fn to_bytes(&self) -> &'s [u8] { self.to_units() }
+    #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_units_with_nul() }
 
     /// Convert `self` to a [`std::ffi::CStr`].
     ///
@@ -79,19 +104,14 @@ impl<'s> CStrPtr<'s> {
     ///
     /// `O(n)` to find the terminal `\0` and validate UTF8.
     pub fn to_str(&self) -> Result<&'s str, Utf8Error> { self.to_cstr().to_str() }
-
-    /// Convert `self` to a <code>[Cow]\<[str]\></code>.
-    ///
-    /// `O(n)` to find the terminal `\0` and validate, and to convert UTF8ish data to UTF8 if necesssary.
-    pub fn to_string_lossy(&self) -> Cow<'s, str>   { self.to_cstr().to_string_lossy() }
 }
 
-impl Debug for CStrPtr<'_> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(self.to_bytes(), f) }
+impl<U: Unit> Debug for CStrPtr<'_, U> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { U::debug(self.to_units(), f) }
 }
 
-impl Default for CStrPtr<'_> {
-    fn default() -> Self { Self { ptr: b"\0".as_ptr().cast(), phantom: PhantomData } }
+impl<U: Unit> Default for CStrPtr<'_, U> {
+    fn default() -> Self { Self { ptr: U::EMPTY.as_ptr().cast(), phantom: PhantomData } }
 }
 
 impl<'s> From<CStrPtr<'s>> for &'s CStr {
@@ -99,22 +119,22 @@ impl<'s> From<CStrPtr<'s>> for &'s CStr {
 }
 
 impl<'s> From<&'s CStr> for CStrPtr<'s> {
-    fn from(s: &'s CStr) -> Self { unsafe { CStrPtr::from_ptr_unbounded(s.as_ptr()) } }
+    fn from(s: &'s CStr) -> Self { unsafe { CStrPtr::from_ptr_unbounded(s.as_ptr().cast()) } }
 }
 
 
 
-/// <code>[Option]<[CStrNonNull]></code> is ABI compatible with `*const c_char`.
+/// <code>[Option]&lt;[CStrNonNull]&lt;[Unit]&gt;&gt;</code> is ABI compatible with <code>*const [Unit]</code>.
 ///
 /// If you want to treat <code>[null]\(\)</code> as `""`, use [`CStrPtr`] instead.
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct CStrNonNull<'s> {
-    ptr:        NonNull<c_char>,
-    phantom:    PhantomData<&'s c_char>,
+pub struct CStrNonNull<'s, U: Unit = u8> {
+    ptr:        NonNull<U::CChar>,
+    phantom:    PhantomData<&'s U::CChar>,
 }
 
-impl<'s> CStrNonNull<'s> {
+impl<'s, U: Unit> CStrNonNull<'s, U> {
     /// Convert a raw C-string into a [`CStrPtr`].  Note that the lifetime of the returned reference is unbounded!
     ///
     /// ### Safety
@@ -122,46 +142,67 @@ impl<'s> CStrNonNull<'s> {
     /// *   `ptr` must point to a `\0`-terminated C string
     /// *   The underlying C-string cannot change for the duration of the lifetime `'s`.
     /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally extend.  Be careful!
-    pub unsafe fn from_ptr_unchecked_unbounded(ptr: *const c_char) -> Self { Self { ptr: NonNull::new_unchecked(ptr as *mut _), phantom: PhantomData } }
+    pub unsafe fn from_ptr_unchecked_unbounded(ptr: *const U::CChar) -> Self { Self { ptr: NonNull::new_unchecked(ptr as *mut _), phantom: PhantomData } }
 
-    /// Convert a raw slice of bytes into a [`CStrNonNull`].  `bytes` should end with `\0`, but contain no interior `\0`s otherwise.
-    pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromBytesWithNulError> {
-        CStr::from_bytes_with_nul(bytes).map(Self::from)
+    /// Convert a raw slice of units into a [`CStrNonNull`].  `units` should end with `\0`, but contain no interior `\0`s otherwise.
+    pub fn from_units_with_nul(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> {
+        let (nul, interior) = units.split_last().ok_or(FromUnitsWithNulError(()))?;
+        if *nul != U::NUL { return Err(FromUnitsWithNulError(())); }
+        if interior.contains(&U::NUL) { return Err(FromUnitsWithNulError(())); }
+        Ok(unsafe { Self::from_ptr_unchecked_unbounded(units.as_ptr().cast()) })
     }
 
-    /// Convert a raw slice of bytes to a [`CStrNonNull`].  The resulting string will be terminated at the first `\0` in `bytes`.
+    /// Convert a raw slice of units to a [`CStrNonNull`].  The resulting string will be terminated at the first `\0` in `units`.
     ///
     /// ### Safety
-    /// *   `bytes` must contain at least one `\0`.
-    pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self {
-        debug_assert!(bytes.contains(&0), "Undefined Behavior: `bytes` contained no `\0`!");
-        Self::from_ptr_unchecked_unbounded(bytes.as_ptr() as *const _)
+    /// *   `units` must contain at least one `\0`.
+    pub unsafe fn from_units_with_nul_unchecked(units: &'s [U]) -> Self {
+        debug_assert!(units.contains(&U::NUL), "Undefined Behavior: `units` contained no `\0`!");
+        Self::from_ptr_unchecked_unbounded(units.as_ptr() as *const _)
     }
 
-    /// Use [`from_bytes_with_nul_unchecked`](Self::from_bytes_with_nul_unchecked) or [`cstr!`] instead!
+    /// Use [`from_units_with_nul_unchecked`](Self::from_units_with_nul_unchecked) or [`cstr!`] instead!
     #[doc(hidden)] // This fn only exists to allow the use of the totally safe `cstr!` macro in `#![forbid(unsafe_code)]` codebases.
-    pub fn zzz_unsound_do_not_call_this_directly_from_macro_bytes_with_nul(bytes: &'s [u8]) -> Self {
-        unsafe { Self::from_bytes_with_nul_unchecked(bytes) }
+    pub fn zzz_unsound_do_not_call_this_directly_from_macro_bytes_with_nul(units: &'s [U]) -> Self {
+        unsafe { Self::from_units_with_nul_unchecked(units) }
     }
 
     /// Treat `self` as a raw C string.
-    pub fn as_ptr(&self) -> *const c_char { self.ptr.as_ptr() }
+    pub fn as_ptr(&self) -> *const U::CChar { self.ptr.as_ptr().cast() }
 
     /// Treat `self` as a [`NonNull`] C string.
-    pub fn as_non_null(&self) -> NonNull<c_char> { self.ptr }
+    pub fn as_non_null(&self) -> NonNull<U::CChar> { self.ptr }
 
     /// Checks if `self` is empty (either <code>[null]\(\)</code>, or the first character is `\0`.)
-    pub fn is_empty(&self) -> bool { 0 == unsafe { *self.ptr.as_ref() } }
+    pub fn is_empty(&self) -> bool { U::NUL == unsafe { *self.ptr.as_ptr().cast() } }
 
-    /// Convert `self` to a <code>&\[[u8]\]</code> slice, **excluding** the terminal `\0`.
+    /// Convert `self` to a <code>&\[[Unit]\]</code> slice, **excluding** the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_bytes(&self) -> &'s [u8] { self.to_cstr().to_bytes() }
+    pub fn to_units(&self) -> &'s [U] {
+        let start = self.ptr.as_ptr().cast();
+        unsafe { std::slice::from_raw_parts(start, strlen(start) + 0) }
+    }
 
-    /// Convert `self` to a <code>&\[[u8]\]</code> slice, including the terminal `\0`.
+    /// Convert `self` to a <code>&\[[Unit]\]</code> slice, including the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_cstr().to_bytes_with_nul() }
+    pub fn to_units_with_nul(&self) -> &'s [U] {
+        let start = self.ptr.as_ptr().cast();
+        unsafe { std::slice::from_raw_parts(start, strlen(start) + 1) }
+    }
+
+    /// Convert `self` to a <code>[Cow]\<[str]\></code>.
+    ///
+    /// `O(n)` to find the terminal `\0` and validate, and to convert UTF8ish data to UTF8 if necesssary.
+    pub fn to_string_lossy(&self) -> Cow<'s, str> { U::to_string_lossy(self.to_units()) }
+}
+
+impl<'s> CStrNonNull<'s, u8> {
+    #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromBytesWithNulError> { CStr::from_bytes_with_nul(bytes).map(Self::from) }
+    #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { Self::from_units_with_nul_unchecked(bytes) }
+    #[doc(hidden)] pub fn to_bytes(&self) -> &'s [u8] { self.to_cstr().to_bytes() }
+    #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_cstr().to_bytes_with_nul() }
 
     /// Convert `self` to a [`std::ffi::CStr`].
     ///
@@ -172,19 +213,14 @@ impl<'s> CStrNonNull<'s> {
     ///
     /// `O(n)` to find the terminal `\0` and validate UTF8.
     pub fn to_str(&self) -> Result<&'s str, Utf8Error> { self.to_cstr().to_str() }
-
-    /// Convert `self` to a <code>[Cow]\<[str]\></code>.
-    ///
-    /// `O(n)` to find the terminal `\0` and validate, and to convert UTF8ish data to UTF8 if necesssary.
-    pub fn to_string_lossy(&self) -> Cow<'s, str>   { self.to_cstr().to_string_lossy() }
 }
 
-impl Debug for CStrNonNull<'_> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(self.to_bytes(), f) }
+impl<U: Unit> Debug for CStrNonNull<'_, U> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { U::debug(self.to_units(), f) }
 }
 
-impl Default for CStrNonNull<'_> {
-    fn default() -> Self { Self { ptr: unsafe { NonNull::new_unchecked(b"\0".as_ptr() as *mut _) }, phantom: PhantomData } }
+impl<U: Unit> Default for CStrNonNull<'_, U> {
+    fn default() -> Self { Self { ptr: unsafe { NonNull::new_unchecked(U::EMPTY.as_ptr() as *mut _) }, phantom: PhantomData } }
 }
 
 impl<'s> From<CStrNonNull<'s>> for &'s CStr {
@@ -192,7 +228,7 @@ impl<'s> From<CStrNonNull<'s>> for &'s CStr {
 }
 
 impl<'s> From<&'s CStr> for CStrNonNull<'s> {
-    fn from(s: &'s CStr) -> Self { unsafe { CStrNonNull::from_ptr_unchecked_unbounded(s.as_ptr()) } }
+    fn from(s: &'s CStr) -> Self { unsafe { CStrNonNull::from_ptr_unchecked_unbounded(s.as_ptr().cast()) } }
 }
 
 
@@ -201,6 +237,10 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     assert_abi_compatible!(CStrPtr,             *const c_char);
     assert_abi_compatible!(Option<CStrNonNull>, *const c_char);
     assert_abi_compatible!(CStrNonNull,         NonNull<c_char>);
+
+    assert_abi_compatible!(CStrPtr<u16>,             *const u16);
+    assert_abi_compatible!(Option<CStrNonNull<u16>>, *const u16);
+    assert_abi_compatible!(CStrNonNull<u16>,         NonNull<u16>);
 }
 
 
