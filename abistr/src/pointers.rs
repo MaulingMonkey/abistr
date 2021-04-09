@@ -163,7 +163,7 @@ impl<'s, U: Unit> CStrNonNull<'s, U> {
 
     /// Use [`from_units_with_nul_unchecked`](Self::from_units_with_nul_unchecked) or [`cstr!`] instead!
     #[doc(hidden)] // This fn only exists to allow the use of the totally safe `cstr!` macro in `#![forbid(unsafe_code)]` codebases.
-    pub fn zzz_unsound_do_not_call_this_directly_from_macro_bytes_with_nul(units: &'s [U]) -> Self {
+    pub fn zzz_unsound_do_not_call_this_directly_from_macro_units_with_nul(units: &'s [U]) -> Self {
         unsafe { Self::from_units_with_nul_unchecked(units) }
     }
 

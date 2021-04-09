@@ -4,8 +4,77 @@ use std::convert::TryFrom;
 use std::iter::FromIterator;
 
 
+pub(super) trait Unit : From<u8> {
+    fn name() -> &'static str;
+    fn into_ts(units: &[Self], s: Span) -> TokenStream;
+    fn extend(units: &mut Vec<Self>, ch: char);
+}
 
-pub(super) fn cstr_impl(input: TokenStream) -> TokenStream {
+impl Unit for u8 {
+    fn name() -> &'static str { "u8" }
+
+    fn into_ts(units: &[Self], s: Span) -> TokenStream {
+        let mut literal = Literal::byte_string(units);
+        literal.set_span(s);
+        TokenStream::from(TokenTree::from(literal))
+    }
+
+    fn extend(units: &mut Vec<Self>, ch: char) {
+        let mut buf = [0, 0, 0, 0, 0, 0];
+        units.extend(ch.encode_utf8(&mut buf).bytes());
+    }
+}
+
+impl Unit for u16 {
+    fn name() -> &'static str { "u16" }
+
+    fn into_ts(units: &[Self], s: Span) -> TokenStream {
+        let mut elements = TokenStream::new();
+        for u in units.iter().copied() {
+            elements.extend(Some(TokenTree::from(Literal::u16_suffixed(u))));
+            elements.extend(Some(ttp(',', Spacing::Alone, s)));
+        }
+
+        let mut array = Group::new(Delimiter::Bracket, elements);
+        array.set_span(s);
+
+        let mut o = TokenStream::new();
+        o.extend(Some(ttp('&', Spacing::Alone, s)));
+        o.extend(Some(TokenTree::from(array)));
+        o
+    }
+
+    fn extend(units: &mut Vec<Self>, ch: char) {
+        let mut buf = [0, 0];
+        units.extend(ch.encode_utf16(&mut buf).iter().copied());
+    }
+}
+
+impl Unit for u32 {
+    fn name() -> &'static str { "u32" }
+
+    fn into_ts(units: &[Self], s: Span) -> TokenStream {
+        let mut elements = TokenStream::new();
+        for u in units.iter().copied() {
+            elements.extend(Some(TokenTree::from(Literal::u32_suffixed(u))));
+            elements.extend(Some(ttp(',', Spacing::Alone, s)));
+        }
+
+        let mut array = Group::new(Delimiter::Bracket, elements);
+        array.set_span(s);
+
+        let mut o = TokenStream::new();
+        o.extend(Some(ttp('&', Spacing::Alone, s)));
+        o.extend(Some(TokenTree::from(array)));
+        o
+    }
+
+    fn extend(units: &mut Vec<Self>, ch: char) {
+        units.push(ch as u32);
+    }
+}
+
+pub(super) fn cstr_impl<U: Unit>(input: TokenStream) -> TokenStream {
     let mut input = input.into_iter();
 
     let crate_ = match input.next() {
@@ -36,7 +105,7 @@ pub(super) fn cstr_impl(input: TokenStream) -> TokenStream {
         None        => return compile_error("expected string argument to cstr!() macro", Span::call_site()).into(),
     };
 
-    let parsed_literal = match parse_str(&literal) {
+    let parsed_literal = match parse_str::<U>(&literal) {
         Ok(r) => r,
         Err(err) => return err,
     };
@@ -50,15 +119,19 @@ pub(super) fn cstr_impl(input: TokenStream) -> TokenStream {
         ttid("CStrNonNull", s),
         ttp(':', Spacing::Joint, s),
         ttp(':', Spacing::Joint, s),
-        // XXX: rename
-        ttid("zzz_unsound_do_not_call_this_directly_from_macro_bytes_with_nul", s),
-        ttg(Delimiter::Parenthesis, s, vec![parsed_literal])
+        ttp('<', Spacing::Joint, s),
+        ttid(U::name(), s),
+        ttp('>', Spacing::Joint, s),
+        ttp(':', Spacing::Joint, s),
+        ttp(':', Spacing::Joint, s),
+        ttid("zzz_unsound_do_not_call_this_directly_from_macro_units_with_nul", s),
+        ttg(Delimiter::Parenthesis, s, parsed_literal)
     ].into_iter());
 
     o
 }
 
-fn parse_str(literal: &Literal) -> Result<TokenTree, TokenStream> {
+fn parse_str<U: Unit>(literal: &Literal) -> Result<TokenStream, TokenStream> {
     let s = literal.span();
 
     let literal = literal.to_string();
@@ -80,19 +153,19 @@ fn parse_str(literal: &Literal) -> Result<TokenTree, TokenStream> {
         .strip_prefix("\"").ok_or_else(|| compile_error("expected string literal to start with `\"`", s))?
         .strip_suffix("\"").ok_or_else(|| compile_error("expected string literal to end with `\"`", s))?;
 
-    let mut bytes = Vec::new();
+    let mut units = Vec::<U>::new();
     let mut chars = literal.chars();
     while let Some(ch) = chars.next() {
         match ch {
             '\\' if !raw => {
                 match chars.next() {
-                    Some('0') => Err(compile_error("interior `\0` not permitted in C string", s))?,
-                    Some('t') => bytes.push(b'\t'),
-                    Some('n') => bytes.push(b'\n'),
-                    Some('r') => bytes.push(b'\r'),
-                    Some('\\') => bytes.push(b'\\'),
-                    Some('\'') => bytes.push(b'\''),
-                    Some('\"') => bytes.push(b'\"'),
+                    Some('0')  => Err(compile_error("interior `\0` not permitted in C string", s))?,
+                    Some('t')  => units.push(U::from(b'\t')),
+                    Some('n')  => units.push(U::from(b'\n')),
+                    Some('r')  => units.push(U::from(b'\r')),
+                    Some('\\') => units.push(U::from(b'\\')),
+                    Some('\'') => units.push(U::from(b'\'')),
+                    Some('\"') => units.push(U::from(b'\"')),
                     Some('x') => {
                         let mut v = 0u8;
                         for _ in 0..2 {
@@ -106,10 +179,12 @@ fn parse_str(literal: &Literal) -> Result<TokenTree, TokenStream> {
                         }
                         if v == 0 {
                             Err(compile_error("interior `\0` not permitted in C string", s))?
+                        } else if std::mem::size_of::<U>() != 1 {
+                            Err(compile_error("`\\x` escape sequences are ambiguous - and thus forbidden - inside unicode strings (should it be 1 byte? 1 code unit? 2 hex values? 4 hex values?)", s))?
                         } else if !byte && v > 0x7F {
                             Err(compile_error("this form of character escape may only be used with characters in the range [\\x00-\\x7f]", s))?
                         }
-                        bytes.push(v);
+                        units.push(U::from(v));
                     },
                     Some('u') if byte => Err(compile_error("unicode escape sequences cannot be used as a byte or in a byte string", s))?,
                     Some('u') => {
@@ -127,25 +202,20 @@ fn parse_str(literal: &Literal) -> Result<TokenTree, TokenStream> {
                         }
                         if v == 0 { Err(compile_error("interior `\0` not permitted in C string", s))? }
                         let ch = char::try_from(v).map_err(|_| compile_error(format!("invalid unicode codepoint U+{:04X} in `\\u{{...}}` escape sequence", v), s))?;
-                        let mut buf = [0, 0, 0, 0, 0, 0];
-                        bytes.extend(ch.encode_utf8(&mut buf[..]).bytes());
+                        U::extend(&mut units, ch);
                     },
-                    Some(ch) => {
-                        let mut buf = [0, 0, 0, 0, 0, 0];
-                        bytes.extend(ch.encode_utf8(&mut buf[..]).bytes());
-                    },
+                    Some(ch) => U::extend(&mut units, ch),
                     None => return Err(compile_error("expected character after `\\` in string", s).into()),
                 }
             },
             ch => {
                 if ch == '\0' { Err(compile_error("interior `\0` not permitted in C string", s))? }
-                let mut buf = [0, 0, 0, 0, 0, 0];
-                bytes.extend(ch.encode_utf8(&mut buf[..]).bytes());
+                U::extend(&mut units, ch);
             },
         }
     }
-    bytes.push(0);
-    Ok(Literal::byte_string(&bytes[..]).into())
+    units.push(U::from(0));
+    Ok(U::into_ts(&units, s))
 }
 
 fn ttid(string: &str, span: Span) -> TokenTree {

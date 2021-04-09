@@ -21,7 +21,7 @@
 #[macro_export]
 macro_rules! cstr {
     ( $string:literal ) => {
-        $crate::abistr_macros::cstr_impl!(($crate) $string)
+        $crate::abistr_macros::cstr8_impl!(($crate) $string)
     };
 }
 
@@ -30,7 +30,61 @@ macro_rules! cstr {
 #[macro_export]
 macro_rules! cstr {
     ( $($tt:tt)+ ) => {
-        $crate::abistr_macros::cstr_impl!(($crate) $($tt)+)
+        $crate::abistr_macros::cstr8_impl!(($crate) $($tt)+)
+    };
+}
+
+/// Create a <code>&[CStrNonNull]</code> literal at compile time
+#[cfg(doc)]
+#[macro_export]
+macro_rules! cstr8 {
+    ( $string:literal ) => {
+        $crate::abistr_macros::cstr8_impl!(($crate) $string)
+    };
+}
+
+/// Create a <code>&[CStrNonNull]</code> literal at compile time
+#[cfg(not(doc))] // use wildcards for better error messages from proc macro
+#[macro_export]
+macro_rules! cstr8 {
+    ( $($tt:tt)+ ) => {
+        $crate::abistr_macros::cstr8_impl!(($crate) $($tt)+)
+    };
+}
+
+/// Create a <code>&[CStrNonNull]</code> literal at compile time
+#[cfg(doc)]
+#[macro_export]
+macro_rules! cstr16 {
+    ( $string:literal ) => {
+        $crate::abistr_macros::cstr16_impl!(($crate) $string)
+    };
+}
+
+/// Create a <code>&[CStrNonNull]</code> literal at compile time
+#[cfg(not(doc))] // use wildcards for better error messages from proc macro
+#[macro_export]
+macro_rules! cstr16 {
+    ( $($tt:tt)+ ) => {
+        $crate::abistr_macros::cstr16_impl!(($crate) $($tt)+)
+    };
+}
+
+/// Create a <code>&[CStrNonNull]</code> literal at compile time
+#[cfg(doc)]
+#[macro_export]
+macro_rules! cstr32 {
+    ( $string:literal ) => {
+        $crate::abistr_macros::cstr32_impl!(($crate) $string)
+    };
+}
+
+/// Create a <code>&[CStrNonNull]</code> literal at compile time
+#[cfg(not(doc))] // use wildcards for better error messages from proc macro
+#[macro_export]
+macro_rules! cstr32 {
+    ( $($tt:tt)+ ) => {
+        $crate::abistr_macros::cstr32_impl!(($crate) $($tt)+)
     };
 }
 
@@ -54,4 +108,64 @@ macro_rules! cstr {
     b(example);
     a(not_unicode);
     b(not_unicode);
+}
+
+#[test] fn basics8() {
+    fn a(_: CStrNonNull<'static>) {}
+    fn b(_: CStrNonNull) {}
+
+    let empty       = cstr8!("");
+    let example     = cstr8!("example");
+    let not_unicode = cstr8!(b"\xFF\xFF");
+
+    assert_eq!(empty        .to_units(), b"");
+    assert_eq!(example      .to_units(), b"example");
+    assert_eq!(not_unicode  .to_units(), b"\xFF\xFF");
+
+    a(empty);
+    b(empty);
+    a(example);
+    b(example);
+    a(not_unicode);
+    b(not_unicode);
+}
+
+#[test] fn basics16() {
+    fn a(_: CStrNonNull<'static, u16>) {}
+    fn b(_: CStrNonNull<u16>) {}
+
+    let empty       = cstr16!("");
+    let example     = cstr16!("example");
+    //let not_unicode = cstr16!(b"\xFF\xFF");
+
+    assert_eq!(empty        .to_units(), []);
+    assert_eq!(example      .to_units(), [b'e' as u16, b'x' as u16, b'a' as u16, b'm' as u16, b'p' as u16, b'l' as u16, b'e' as u16]);
+    //assert_eq!(not_unicode  .to_units(), b"\xFF\xFF");
+
+    a(empty);
+    b(empty);
+    a(example);
+    b(example);
+    //a(not_unicode);
+    //b(not_unicode);
+}
+
+#[test] fn basics32() {
+    fn a(_: CStrNonNull<'static, u32>) {}
+    fn b(_: CStrNonNull<u32>) {}
+
+    let empty       = cstr32!("");
+    let example     = cstr32!("example");
+    //let not_unicode = cstr16!(b"\xFF\xFF");
+
+    assert_eq!(empty        .to_units(), []);
+    assert_eq!(example      .to_units(), [b'e' as u32, b'x' as u32, b'a' as u32, b'm' as u32, b'p' as u32, b'l' as u32, b'e' as u32]);
+    //assert_eq!(not_unicode  .to_units(), b"\xFF\xFF");
+
+    a(empty);
+    b(empty);
+    a(example);
+    b(example);
+    //a(not_unicode);
+    //b(not_unicode);
 }
