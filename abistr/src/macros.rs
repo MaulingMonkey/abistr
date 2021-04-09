@@ -136,18 +136,14 @@ macro_rules! cstr32 {
 
     let empty       = cstr16!("");
     let example     = cstr16!("example");
-    //let not_unicode = cstr16!(b"\xFF\xFF");
 
     assert_eq!(empty        .to_units(), []);
     assert_eq!(example      .to_units(), [b'e' as u16, b'x' as u16, b'a' as u16, b'm' as u16, b'p' as u16, b'l' as u16, b'e' as u16]);
-    //assert_eq!(not_unicode  .to_units(), b"\xFF\xFF");
 
     a(empty);
     b(empty);
     a(example);
     b(example);
-    //a(not_unicode);
-    //b(not_unicode);
 }
 
 #[test] fn basics32() {
@@ -156,16 +152,50 @@ macro_rules! cstr32 {
 
     let empty       = cstr32!("");
     let example     = cstr32!("example");
-    //let not_unicode = cstr16!(b"\xFF\xFF");
 
     assert_eq!(empty        .to_units(), []);
     assert_eq!(example      .to_units(), [b'e' as u32, b'x' as u32, b'a' as u32, b'm' as u32, b'p' as u32, b'l' as u32, b'e' as u32]);
-    //assert_eq!(not_unicode  .to_units(), b"\xFF\xFF");
 
     a(empty);
     b(empty);
     a(example);
     b(example);
-    //a(not_unicode);
-    //b(not_unicode);
+}
+
+mod compile_tests {
+    /// ```no_run
+    /// use abistr::*;
+    /// let _ =  cstr!(b"\xFF");
+    /// let _ = cstr8!(b"\xFF");
+    /// ```
+    #[allow(dead_code)] struct HexInRange8;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// let _ =  cstr!("\x7F");
+    /// let _ = cstr8!("\x7F");
+    /// ```
+    #[allow(dead_code)] struct HexInRange7;
+
+    /// ```compile_fail
+    /// use abistr::*;
+    /// let _ =  cstr!("\xFF"); // no b prefix means max is 7F
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// let _ = cstr8!("\xFF"); // no b prefix means max is 7F
+    /// ```
+    #[allow(dead_code)] struct HexOutOfRange;
+
+    /// ```compile_fail
+    /// use abistr::*;
+    /// let _ =  cstr16!("\xFF");
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// let _ = cstr32!("\xFF");
+    /// ```
+    #[allow(dead_code)] struct HexAmbiguous;
 }
