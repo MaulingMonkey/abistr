@@ -1,80 +1,69 @@
 use crate::*;
 
 use std::ffi::*;
+use std::os::raw::c_char;
 
 
 
 /// Converts `self` ([str]/[String]/[CStr]/[CString]) into something that implements [AsCStr]
-pub trait TryIntoAsCStr {
+pub trait TryIntoAsCStr<C = c_char> {
     /// The temporary type that can be treated as a C-string.
-    type Target : AsCStr;
+    type Target : AsCStr<C>;
 
     /// Attempt to convert to [Self::Target].  May fail if `self` contains `\0`s.
     fn try_into(self) -> Result<Self::Target, NulError>;
 }
 
-impl<T: AsCStr> TryIntoAsCStr for T {
+impl<C, T: AsCStr<C>> TryIntoAsCStr<C> for T {
     type Target = T;
     fn try_into(self) -> Result<Self::Target, NulError> { Ok(self) }
 }
 
-impl<'s> TryIntoAsCStr for &'s str {
-    type Target = CString;
-    fn try_into(self) -> Result<Self::Target, NulError> {
-        CString::new(self)
-    }
-}
+impl TryIntoAsCStr<c_char> for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, NulError> { CString::new(self) } }
+impl TryIntoAsCStr<u8    > for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, NulError> { CString::new(self) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsCStr<u16   > for &'_ str { type Target = widestring_0_4::U16CString; fn try_into(self) -> Result<Self::Target, NulError> { Self::Target::from_str(self).map_err(|_| CString::new("\0").unwrap_err()) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsCStr<u32   > for &'_ str { type Target = widestring_0_4::U32CString; fn try_into(self) -> Result<Self::Target, NulError> { Self::Target::from_str(self).map_err(|_| CString::new("\0").unwrap_err()) } }
 
-impl TryIntoAsCStr for String {
-    type Target = CString;
-    fn try_into(self) -> Result<Self::Target, NulError> {
-        CString::new(self)
-    }
-}
+impl TryIntoAsCStr<c_char> for String { type Target = CString; fn try_into(self) -> Result<Self::Target, NulError> { CString::new(self) } }
+impl TryIntoAsCStr<u8    > for String { type Target = CString; fn try_into(self) -> Result<Self::Target, NulError> { CString::new(self) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsCStr<u16   > for String { type Target = widestring_0_4::U16CString; fn try_into(self) -> Result<Self::Target, NulError> { Self::Target::from_str(self).map_err(|_| CString::new("\0").unwrap_err()) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsCStr<u32   > for String { type Target = widestring_0_4::U32CString; fn try_into(self) -> Result<Self::Target, NulError> { Self::Target::from_str(self).map_err(|_| CString::new("\0").unwrap_err()) } }
 
 
 
 /// Converts `self` ([str]/[String]/[CStr]/[CString]/\(\)) into something that implements [AsOptCStr]
-pub trait TryIntoAsOptCStr {
+pub trait TryIntoAsOptCStr<C = c_char> {
     /// The temporary type that can be treated as an [Option]al C-string.
-    type Target : AsOptCStr;
+    type Target : AsOptCStr<C>;
 
     /// Attempt to convert to [Self::Target].  May fail if `self` contains `\0`s.
     fn try_into(self) -> Result<Self::Target, NulError>;
 }
 
-impl<T: AsOptCStr> TryIntoAsOptCStr for T {
+impl<C, T: AsOptCStr<C>> TryIntoAsOptCStr<C> for T {
     type Target = T;
     fn try_into(self) -> Result<Self::Target, NulError> { Ok(self) }
 }
 
-impl<'s> TryIntoAsOptCStr for &'s str {
-    type Target = CString;
-    fn try_into(self) -> Result<Self::Target, NulError> {
-        CString::new(self)
-    }
-}
+impl TryIntoAsOptCStr<c_char> for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, NulError> { CString::new(self) } }
+impl TryIntoAsOptCStr<u8    > for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, NulError> { CString::new(self) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsOptCStr<u16> for &'_ str { type Target = widestring_0_4::U16CString; fn try_into(self) -> Result<Self::Target, NulError> { Self::Target::from_str(self).map_err(|_| CString::new("\0").unwrap_err()) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsOptCStr<u32> for &'_ str { type Target = widestring_0_4::U32CString; fn try_into(self) -> Result<Self::Target, NulError> { Self::Target::from_str(self).map_err(|_| CString::new("\0").unwrap_err()) } }
 
-impl TryIntoAsOptCStr for String {
-    type Target = CString;
-    fn try_into(self) -> Result<Self::Target, NulError> {
-        CString::new(self)
-    }
-}
+impl TryIntoAsOptCStr<c_char> for String { type Target = CString; fn try_into(self) -> Result<Self::Target, NulError> { CString::new(self) } }
+impl TryIntoAsOptCStr<u8    > for String { type Target = CString; fn try_into(self) -> Result<Self::Target, NulError> { CString::new(self) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsOptCStr<u16> for String { type Target = widestring_0_4::U16CString; fn try_into(self) -> Result<Self::Target, NulError> { Self::Target::from_str(self).map_err(|_| CString::new("\0").unwrap_err()) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsOptCStr<u32> for String { type Target = widestring_0_4::U32CString; fn try_into(self) -> Result<Self::Target, NulError> { Self::Target::from_str(self).map_err(|_| CString::new("\0").unwrap_err()) } }
 
-impl<'s> TryIntoAsOptCStr for Option<&'s str> {
-    type Target = Option<CString>;
-    fn try_into(self) -> Result<Self::Target, NulError> {
-        self.map_or(Ok(None), |s| CString::new(s).map(|s| Some(s)))
-    }
-}
+impl TryIntoAsOptCStr<c_char> for Option<&'_ str> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, NulError> { self.map_or(Ok(None), |s| CString::new(s).map(|s| Some(s))) } }
+impl TryIntoAsOptCStr<u8    > for Option<&'_ str> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, NulError> { self.map_or(Ok(None), |s| CString::new(s).map(|s| Some(s))) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsOptCStr<u16> for Option<&'_ str> { type Target = Option<widestring_0_4::U16CString>; fn try_into(self) -> Result<Self::Target, NulError> { self.map_or(Ok(None), |s| widestring_0_4::U16CString::from_str(s).map(|s| Some(s)).map_err(|_| CString::new("\0").unwrap_err())) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsOptCStr<u32> for Option<&'_ str> { type Target = Option<widestring_0_4::U32CString>; fn try_into(self) -> Result<Self::Target, NulError> { self.map_or(Ok(None), |s| widestring_0_4::U32CString::from_str(s).map(|s| Some(s)).map_err(|_| CString::new("\0").unwrap_err())) } }
 
-impl TryIntoAsOptCStr for Option<String> {
-    type Target = Option<CString>;
-    fn try_into(self) -> Result<Self::Target, NulError> {
-        self.map_or(Ok(None), |s| CString::new(s).map(|s| Some(s)))
-    }
-}
+impl TryIntoAsOptCStr<c_char> for Option<String> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, NulError> { self.map_or(Ok(None), |s| CString::new(s).map(|s| Some(s))) } }
+impl TryIntoAsOptCStr<u8    > for Option<String> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, NulError> { self.map_or(Ok(None), |s| CString::new(s).map(|s| Some(s))) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsOptCStr<u16> for Option<String> { type Target = Option<widestring_0_4::U16CString>; fn try_into(self) -> Result<Self::Target, NulError> { self.map_or(Ok(None), |s| widestring_0_4::U16CString::from_str(s).map(|s| Some(s)).map_err(|_| CString::new("\0").unwrap_err())) } }
+#[cfg(feature = "widestring-0-4")] impl TryIntoAsOptCStr<u32> for Option<String> { type Target = Option<widestring_0_4::U32CString>; fn try_into(self) -> Result<Self::Target, NulError> { self.map_or(Ok(None), |s| widestring_0_4::U32CString::from_str(s).map(|s| Some(s)).map_err(|_| CString::new("\0").unwrap_err())) } }
 
 
 
