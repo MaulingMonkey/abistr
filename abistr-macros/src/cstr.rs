@@ -30,9 +30,13 @@ impl Unit for u16 {
 
     fn into_ts(units: &[Self], s: Span) -> TokenStream {
         let mut elements = TokenStream::new();
-        for u in units.iter().copied() {
+        let mut units = units.iter().copied();
+        if let Some(u) = units.next() {
             elements.extend(Some(TokenTree::from(Literal::u16_suffixed(u))));
-            elements.extend(Some(ttp(',', Spacing::Alone, s)));
+        }
+        for u in units {
+            elements.extend(Some(ttp(',', Spacing::Joint, s)));
+            elements.extend(Some(TokenTree::from(Literal::u16_unsuffixed(u))));
         }
 
         let mut array = Group::new(Delimiter::Bracket, elements);
@@ -55,9 +59,13 @@ impl Unit for u32 {
 
     fn into_ts(units: &[Self], s: Span) -> TokenStream {
         let mut elements = TokenStream::new();
-        for u in units.iter().copied() {
+        let mut units = units.iter().copied();
+        if let Some(u) = units.next() {
             elements.extend(Some(TokenTree::from(Literal::u32_suffixed(u))));
-            elements.extend(Some(ttp(',', Spacing::Alone, s)));
+        }
+        for u in units {
+            elements.extend(Some(ttp(',', Spacing::Joint, s)));
+            elements.extend(Some(TokenTree::from(Literal::u32_unsuffixed(u))));
         }
 
         let mut array = Group::new(Delimiter::Bracket, elements);
