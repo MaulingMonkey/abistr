@@ -69,7 +69,6 @@ impl TryIntoAsOptCStr<u8    > for Option<String> { type Target = Option<CString>
 
 #[test] fn basic_usage() {
     fn f(_: impl TryIntoAsCStr) {}
-    //f(()); // not legal
     f("test");
     f(cstr!("test"));
     f(CStrNonNull::from_bytes_with_nul(b"test\0").unwrap());
@@ -77,8 +76,6 @@ impl TryIntoAsOptCStr<u8    > for Option<String> { type Target = Option<CString>
     f(CString::new("test").unwrap());
     f(CString::new("test").unwrap().as_c_str());
 
-    //f(CStrPtr::from_bytes_with_nul(b"test\0").unwrap()); // CStrPtr could be null, not passable
-    //f(CStrPtr::NULL);
 
 
     fn o(_: impl TryIntoAsOptCStr) {}
@@ -99,4 +96,45 @@ impl TryIntoAsOptCStr<u8    > for Option<String> { type Target = Option<CString>
 
     o(CStrPtr::from_bytes_with_nul(b"test\0").unwrap());
     o(CStrPtr::NULL);
+}
+
+mod compile_tests {
+    /// ```no_run
+    /// use abistr::*;
+    /// fn o(_: impl TryIntoAsOptCStr) {}
+    /// o(());
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(_: impl TryIntoAsCStr) {}
+    /// f(());
+    /// ```
+    #[allow(dead_code)] struct Unit;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn o(_: impl TryIntoAsOptCStr) {}
+    /// o(CStrPtr::from_bytes_with_nul(b"test\0").unwrap());
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(_: impl TryIntoAsCStr) {}
+    /// f(CStrPtr::from_bytes_with_nul(b"test\0").unwrap());
+    /// ```
+    #[allow(dead_code)] struct CStrPtrTest;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn o(_: impl TryIntoAsOptCStr) {}
+    /// o(CStrPtr::NULL);
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(_: impl TryIntoAsCStr) {}
+    /// f(CStrPtr::NULL);
+    /// ```
+    #[allow(dead_code)] struct CStrPtrNull;
 }
