@@ -34,7 +34,7 @@ macro_rules! cstr {
     };
 }
 
-/// Create a <code>&[CStrNonNull]</code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[u8]></code> literal at compile time
 #[cfg(doc)]
 #[macro_export]
 macro_rules! cstr8 {
@@ -43,7 +43,7 @@ macro_rules! cstr8 {
     };
 }
 
-/// Create a <code>&[CStrNonNull]</code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[u8]></code> literal at compile time
 #[cfg(not(doc))] // use wildcards for better error messages from proc macro
 #[macro_export]
 macro_rules! cstr8 {
@@ -52,7 +52,7 @@ macro_rules! cstr8 {
     };
 }
 
-/// Create a <code>&[CStrNonNull]</code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[u16]></code> literal at compile time
 #[cfg(doc)]
 #[macro_export]
 macro_rules! cstr16 {
@@ -61,7 +61,7 @@ macro_rules! cstr16 {
     };
 }
 
-/// Create a <code>&[CStrNonNull]</code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[u16]></code> literal at compile time
 #[cfg(not(doc))] // use wildcards for better error messages from proc macro
 #[macro_export]
 macro_rules! cstr16 {
@@ -70,7 +70,7 @@ macro_rules! cstr16 {
     };
 }
 
-/// Create a <code>&[CStrNonNull]</code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[u32]></code> literal at compile time
 #[cfg(doc)]
 #[macro_export]
 macro_rules! cstr32 {
@@ -79,7 +79,7 @@ macro_rules! cstr32 {
     };
 }
 
-/// Create a <code>&[CStrNonNull]</code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[u32]></code> literal at compile time
 #[cfg(not(doc))] // use wildcards for better error messages from proc macro
 #[macro_export]
 macro_rules! cstr32 {
