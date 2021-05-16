@@ -49,7 +49,7 @@
 //! * Pro:  Can't get any simpler for basic interop!
 //! * Con:  Requires `unsafe` to so much as shake a stick at.
 //! * Con:  Easy to create undefined behavior by messing up edge cases involving [null].
-//! * Con:  Easy to create undefined behavior by creating dangling poniters and other lifetime issues (raw pointers have no lifetimes.)
+//! * Con:  Easy to create undefined behavior by creating dangling pointers and other lifetime issues (raw pointers have no lifetimes.)
 //! * Con:  Fairly unergonomic to use directly.
 //!
 //! <code>[`std::ffi::CStr`]</code>
