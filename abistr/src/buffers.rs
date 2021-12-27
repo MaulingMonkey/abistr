@@ -83,7 +83,7 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
 
     /// Get the code units of the string portion of the buffer, including the terminal `\0`.
     /// Since the buffer might not *contain* a terminal `\0`, this may fail.
-    /// You might prefer [`to_bytes`](Self::to_bytes), which cannot fail.
+    /// You might prefer [`to_units`](Self::to_units), which cannot fail.
     ///
     /// `O(n)` to locate the terminal `\0`.
     pub fn to_units_with_nul(&self) -> Result<&[U], NotNulTerminatedError> {
