@@ -2,7 +2,7 @@
 
 [package]
 name            = "abistr"
-version         = "0.0.0-git"
+version         = "0.2.0-rc1"
 authors         = ["MaulingMonkey <git@maulingmonkey.com>"]
 edition         = "2018"
 repository      = "https://github.com/MaulingMonkey/abistr"
@@ -18,6 +18,6 @@ exclude         = [".vscode"]
 all-features    = true
 
 [dependencies]
-abistr-macros   = { path = "../abistr-macros", version = "0.0.0-git" }
+abistr-macros   = { path = "../abistr-macros", version = "0.2.0-rc1" }
 bytemuck        = { version = "1", optional = true }
 widestring-0-4  = { package = "widestring", version = "0.4", optional = true }
