@@ -1,5 +1,14 @@
 use std::error::Error;
+use std::ffi;
 use std::fmt::{self, Debug, Display, Formatter};
+
+macro_rules! convert {
+    ( $src:ty => $dst:ty ) => {
+        impl From<$src> for $dst {
+            fn from(_: $src) -> Self { Self(()) }
+        }
+    };
+}
 
 
 
@@ -21,18 +30,6 @@ impl Debug      for NotNulTerminatedError { fn fmt(&self, fmt: &mut Formatter) -
 impl Display    for NotNulTerminatedError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("data provided is not nul terminated") } }
 impl Error      for NotNulTerminatedError { fn description(&self) -> &str { "data provided is not nul terminated" } }
 
-impl From<NotNulTerminatedError> for std::ffi::FromBytesWithNulError {
-    fn from(_: NotNulTerminatedError) -> std::ffi::FromBytesWithNulError {
-        std::ffi::CStr::from_bytes_with_nul(&[]).unwrap_err()
-    }
-}
-
-impl From<NotNulTerminatedError> for FromUnitsWithNulError {
-    fn from(_: NotNulTerminatedError) -> FromUnitsWithNulError {
-        FromUnitsWithNulError(())
-    }
-}
-
 
 
 /// The string in question contains no terminal `\0`, or contains an interior `\0`.
@@ -41,6 +38,10 @@ pub struct FromUnitsWithNulError(pub(crate) ());
 impl Debug      for FromUnitsWithNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("FromUnitsWithNulError") } }
 impl Display    for FromUnitsWithNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("data provided is not nul terminated, or contains interior nuls") } }
 impl Error      for FromUnitsWithNulError { fn description(&self) -> &str { "data provided is not nul terminated, or contains interior nuls" } }
+convert!(ffi::FromBytesWithNulError => FromUnitsWithNulError);
+// convert!(ffi::FromVecWithNulError => FromUnitsWithNulError); // not yet stable
+// convert!(NotNulTerminatedError => FromUnitsWithNulError);    // ...is this lossy?
+// convert!(InteriorNulError => FromUnitsWithNulError);         // ...is this lossy?
 
 
 
@@ -50,4 +51,4 @@ pub struct InteriorNulError(pub(crate) ());
 impl Debug      for InteriorNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("InteriorNulError") } }
 impl Display    for InteriorNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("data provided contains interior nuls") } }
 impl Error      for InteriorNulError { fn description(&self) -> &str { "data provided contains interior nuls" } }
-impl From<std::ffi::NulError> for InteriorNulError { fn from(_: std::ffi::NulError) -> Self { Self(()) } }
+convert!(ffi::NulError => InteriorNulError);
