@@ -8,7 +8,7 @@ use std::str::*;
 
 
 
-/// <code>[CStrBuf]<\[[Unit]; 128\]></code> is ABI compatible with <code>\[[Unit]; 128\]</code>.
+/// <code>[CStrBuf]<[Unit]; 128></code> is ABI compatible with <code>\[[Unit]; 128\]</code>.
 ///
 /// ### Safety
 ///
