@@ -112,7 +112,7 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
     /// ### Panics
     ///
     /// If `self.buffer.is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
-    pub fn nul_truncate(&mut self) -> CStrNonNull {
+    pub fn nul_truncate(&mut self) -> CStrNonNull<U> {
         let buffer = &mut self.buffer[..];
         *buffer.last_mut().unwrap() = private::Unit::NUL;
         unsafe { CStrNonNull::from_ptr_unchecked_unbounded(buffer.as_ptr().cast()) }
