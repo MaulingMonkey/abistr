@@ -19,5 +19,7 @@ jobs:
       run: |
         rustc -V
         cargo -V
-    - name: Test
+    - name: Test (Default Features)
+      run: cargo test
+    - name: Test (All Features)
       run: cargo test --all-features
