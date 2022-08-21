@@ -1,5 +1,7 @@
 use crate::*;
 
+#[cfg(feature = "widestring-0-4")] use widestring_0_4::*;
+
 use std::borrow::Cow;
 use std::ffi::*;
 use std::fmt::{self, Debug, Formatter};
@@ -104,6 +106,42 @@ impl<'s> CStrPtr<'s, u8> {
     ///
     /// `O(n)` to find the terminal `\0` and validate UTF8.
     pub fn to_str(&self) -> Result<&'s str, Utf8Error> { self.to_cstr().to_str() }
+}
+
+#[cfg(feature = "widestring-0-4")] impl<'s> CStrPtr<'s, u16> {
+    /// Convert `self` to a [`U16CStr`].
+    ///
+    /// `O(n)` to find the terminal `\0`.
+    pub fn to_u16cstr(&self) -> &'s U16CStr {
+        if self.ptr.is_null() {
+            Default::default()
+        } else {
+            unsafe { U16CStr::from_ptr_with_nul(self.ptr, strlen(self.ptr)) }
+        }
+    }
+
+    /// Convert `self` to a [`U16Str`].
+    ///
+    /// `O(n)` to find the terminal `\0`
+    pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
+}
+
+#[cfg(feature = "widestring-0-4")] impl<'s> CStrPtr<'s, u32> {
+    /// Convert `self` to a [`U32CStr`].
+    ///
+    /// `O(n)` to find the terminal `\0`.
+    pub fn to_u32cstr(&self) -> &'s U32CStr {
+        if self.ptr.is_null() {
+            Default::default()
+        } else {
+            unsafe { U32CStr::from_ptr_with_nul(self.ptr, strlen(self.ptr)) }
+        }
+    }
+
+    /// Convert `self` to a [`U32Str`].
+    ///
+    /// `O(n)` to find the terminal `\0`
+    pub fn to_u32str(&self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
 }
 
 impl<U: Unit> Debug for CStrPtr<'_, U> {
@@ -215,6 +253,30 @@ impl<'s> CStrNonNull<'s, u8> {
     pub fn to_str(&self) -> Result<&'s str, Utf8Error> { self.to_cstr().to_str() }
 }
 
+#[cfg(feature = "widestring-0-4")] impl<'s> CStrNonNull<'s, u16> {
+    /// Convert `self` to a [`U16CStr`].
+    ///
+    /// `O(n)` to find the terminal `\0`.
+    pub fn to_u16cstr(&self) -> &'s U16CStr { unsafe { U16CStr::from_ptr_with_nul(self.as_ptr(), strlen(self.as_ptr())) } }
+
+    /// Convert `self` to a [`U16Str`].
+    ///
+    /// `O(n)` to find the terminal `\0`.
+    pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
+}
+
+#[cfg(feature = "widestring-0-4")] impl<'s> CStrNonNull<'s, u32> {
+    /// Convert `self` to a [`U32CStr`].
+    ///
+    /// `O(n)` to find the terminal `\0`.
+    pub fn to_u32cstr(&self) -> &'s U32CStr { unsafe { U32CStr::from_ptr_with_nul(self.as_ptr(), strlen(self.as_ptr())) } }
+
+    /// Convert `self` to a [`U32Str`].
+    ///
+    /// `O(n)` to find the terminal `\0`.
+    pub fn to_u32str(&self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
+}
+
 impl<U: Unit> Debug for CStrNonNull<'_, U> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result { U::debug(self.to_units(), f) }
 }
@@ -245,8 +307,7 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
 
 
-#[allow(overflowing_literals)]
-#[test] fn struct_interop() {
+#[test] fn struct_interop_narrow() {
     use std::mem::*;
     use std::os::raw::c_char;
 
@@ -374,6 +435,150 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     assert_eq!(format!("{:?}", r2.empty         ), "Some(\"\")" );
     assert_eq!(format!("{:?}", r2.example       ), "Some(\"example\")" );
     assert_eq!(format!("{:?}", r2.not_unicode   ), "Some(\"\\xff\\xff\")" );
+}
+
+#[test] fn struct_interop_wide() {
+    use std::mem::*;
+
+    let u_empty : &[u16; 0] = &[];
+    let u_empty0 = &[0u16];
+
+    let u_example  = &[b'e' as u16, b'x' as u16, b'a' as u16, b'm' as u16, b'p' as u16, b'l' as u16, b'e' as u16];
+    let u_example0 = &[b'e' as u16, b'x' as u16, b'a' as u16, b'm' as u16, b'p' as u16, b'l' as u16, b'e' as u16, 0u16];
+
+    // UTF16 encodes surrogates with: `[high, low]`
+    // FFFF is a valid non-surrogate code point
+    // use the following invalid `[low, low]` sequence instead:
+    let u_not_unicode  = &[0xDC00, 0xDC00];
+    let u_not_unicode0 = &[0xDC00, 0xDC00, 0];
+    // ref: https://en.wikipedia.org/wiki/UTF-16#Code_points_from_U+010000_to_U+10FFFF
+
+    #[repr(C)] struct C {
+        null:           *const u16,
+        empty:          *const u16,
+        example:        *const u16,
+        not_unicode:    *const u16,
+    }
+    let c = C {
+        null:           null(),
+        empty:          u_empty0.as_ptr(),
+        example:        u_example0.as_ptr(),
+        not_unicode:    u_not_unicode0.as_ptr(),
+    };
+
+    assert_abi_compatible!(R1, C);
+    #[repr(C)] struct R1 {
+        null:           CStrPtr<'static, u16>,
+        empty:          CStrPtr<'static, u16>,
+        example:        CStrPtr<'static, u16>,
+        not_unicode:    CStrPtr<'static, u16>,
+    }
+    let r1 : &R1 = unsafe { transmute(&c) };
+
+    assert_abi_compatible!(R2, C);
+    #[repr(C)] struct R2 {
+        null:           Option<CStrNonNull<'static, u16>>,
+        empty:          Option<CStrNonNull<'static, u16>>,
+        example:        Option<CStrNonNull<'static, u16>>,
+        not_unicode:    Option<CStrNonNull<'static, u16>>,
+    }
+    let r2 : &R2 = unsafe { transmute(&c) };
+
+    assert_eq!(r1.null          .as_ptr(), c.null);
+    assert_eq!(r1.empty         .as_ptr(), c.empty);
+    assert_eq!(r1.example       .as_ptr(), c.example);
+    assert_eq!(r1.not_unicode   .as_ptr(), c.not_unicode);
+
+    assert_eq!(r2.null          .is_none(), true);
+    assert_eq!(r2.empty         .as_ref().unwrap().as_ptr(), c.empty);
+    assert_eq!(r2.example       .as_ref().unwrap().as_ptr(), c.example);
+    assert_eq!(r2.not_unicode   .as_ref().unwrap().as_ptr(), c.not_unicode);
+    assert_eq!(r2.empty         .as_ref().unwrap().as_non_null().as_ptr() as *const u16, c.empty);
+    assert_eq!(r2.example       .as_ref().unwrap().as_non_null().as_ptr() as *const u16, c.example);
+    assert_eq!(r2.not_unicode   .as_ref().unwrap().as_non_null().as_ptr() as *const u16, c.not_unicode);
+
+    assert_eq!(r1.null          .is_null(), true);
+    assert_eq!(r1.empty         .is_null(), false);
+    assert_eq!(r1.example       .is_null(), false);
+    assert_eq!(r1.not_unicode   .is_null(), false);
+
+    assert_eq!(r2.null          .is_none(), true);
+    assert_eq!(r2.empty         .is_none(), false);
+    assert_eq!(r2.example       .is_none(), false);
+    assert_eq!(r2.not_unicode   .is_none(), false);
+
+    assert_eq!(r1.null          .is_empty(), true);
+    assert_eq!(r1.empty         .is_empty(), true);
+    assert_eq!(r1.example       .is_empty(), false);
+    assert_eq!(r1.not_unicode   .is_empty(), false);
+
+    assert_eq!(r2.null          .as_ref().map_or(true, |s| s.is_empty()), true);
+    assert_eq!(r2.empty         .as_ref().map_or(true, |s| s.is_empty()), true);
+    assert_eq!(r2.example       .as_ref().map_or(true, |s| s.is_empty()), false);
+    assert_eq!(r2.not_unicode   .as_ref().map_or(true, |s| s.is_empty()), false);
+
+    assert_eq!(r1.null          .to_units(), u_empty);
+    assert_eq!(r1.empty         .to_units(), u_empty);
+    assert_eq!(r1.example       .to_units(), u_example);
+    assert_eq!(r1.not_unicode   .to_units(), u_not_unicode);
+
+    assert_eq!(r2.null          .as_ref().map_or(&u_empty[..], |s| s.to_units()), &u_empty[..]);
+    assert_eq!(r2.empty         .as_ref().map_or(&u_empty[..], |s| s.to_units()), &u_empty[..]);
+    assert_eq!(r2.example       .as_ref().map_or(&u_empty[..], |s| s.to_units()), &u_example[..]);
+    assert_eq!(r2.not_unicode   .as_ref().map_or(&u_empty[..], |s| s.to_units()), &u_not_unicode[..]);
+
+    assert_eq!(r1.null          .to_units_with_nul(), u_empty0);
+    assert_eq!(r1.empty         .to_units_with_nul(), u_empty0);
+    assert_eq!(r1.example       .to_units_with_nul(), u_example0);
+    assert_eq!(r1.not_unicode   .to_units_with_nul(), u_not_unicode0);
+
+    assert_eq!(r2.null          .as_ref().map_or(&u_empty0[..], |s| s.to_units_with_nul()), &u_empty0[..]);
+    assert_eq!(r2.empty         .as_ref().map_or(&u_empty0[..], |s| s.to_units_with_nul()), &u_empty0[..]);
+    assert_eq!(r2.example       .as_ref().map_or(&u_empty0[..], |s| s.to_units_with_nul()), &u_example0[..]);
+    assert_eq!(r2.not_unicode   .as_ref().map_or(&u_empty0[..], |s| s.to_units_with_nul()), &u_not_unicode0[..]);
+
+    #[cfg(feature = "widestring-0-4")] {
+        assert_eq!(r1.null          .to_u16cstr(), U16CStr::from_slice_with_nul(u_empty0).unwrap());
+        assert_eq!(r1.empty         .to_u16cstr(), U16CStr::from_slice_with_nul(u_empty0).unwrap());
+        assert_eq!(r1.example       .to_u16cstr(), U16CStr::from_slice_with_nul(u_example0).unwrap());
+        assert_eq!(r1.not_unicode   .to_u16cstr(), U16CStr::from_slice_with_nul(u_not_unicode0).unwrap());
+
+        let empty = U16CStr::from_slice_with_nul(u_empty0).unwrap();
+        assert_eq!(r2.null          .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice_with_nul(u_empty0).unwrap());
+        assert_eq!(r2.empty         .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice_with_nul(u_empty0).unwrap());
+        assert_eq!(r2.example       .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice_with_nul(u_example0).unwrap());
+        assert_eq!(r2.not_unicode   .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice_with_nul(u_not_unicode0).unwrap());
+
+        assert_eq!(r1.null          .to_u16str().as_slice(), u_empty);
+        assert_eq!(r1.empty         .to_u16str().as_slice(), u_empty);
+        assert_eq!(r1.example       .to_u16str().as_slice(), u_example);
+        assert_eq!(r1.not_unicode   .to_u16str().as_slice(), u_not_unicode);
+
+        assert_eq!(r2.null          .as_ref().map_or(&[0xBAD][..], |s| s.to_u16str().as_slice()), &[0xBAD][..]);
+        assert_eq!(r2.empty         .as_ref().map_or(&[0xBAD][..], |s| s.to_u16str().as_slice()), &u_empty[..]);
+        assert_eq!(r2.example       .as_ref().map_or(&[0xBAD][..], |s| s.to_u16str().as_slice()), &u_example[..]);
+        assert_eq!(r2.not_unicode   .as_ref().map_or(&[0xBAD][..], |s| s.to_u16str().as_slice()), &u_not_unicode[..]);
+    }
+
+    assert_eq!(r1.null          .to_string_lossy(), "");
+    assert_eq!(r1.empty         .to_string_lossy(), "");
+    assert_eq!(r1.example       .to_string_lossy(), "example");
+    assert_eq!(r1.not_unicode   .to_string_lossy(), "\u{FFFD}\u{FFFD}");
+
+    assert_eq!(r2.null          .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
+    assert_eq!(r2.empty         .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
+    assert_eq!(r2.example       .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "example");
+    assert_eq!(r2.not_unicode   .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "\u{FFFD}\u{FFFD}");
+
+    assert_eq!(format!("{:?}", r1.null          ), "\"\"" );
+    assert_eq!(format!("{:?}", r1.empty         ), "\"\"" );
+    assert_eq!(format!("{:?}", r1.example       ), "\"example\"" );
+    assert_eq!(format!("{:?}", r1.not_unicode   ), "\"\\udc00\\udc00\"" );
+
+    assert_eq!(format!("{:?}", r2.null          ), "None" );
+    assert_eq!(format!("{:?}", r2.empty         ), "Some(\"\")" );
+    assert_eq!(format!("{:?}", r2.example       ), "Some(\"example\")" );
+    assert_eq!(format!("{:?}", r2.not_unicode   ), "Some(\"\\udc00\\udc00\")" );
 }
 
 mod cstrptr_lifetime_tests {
