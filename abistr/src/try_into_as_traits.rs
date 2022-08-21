@@ -1,8 +1,6 @@
 use crate::*;
 
-#[allow(unused_imports)]
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+#[cfg(feature = "std")] use std::ffi::*;
 
 
 
@@ -20,13 +18,13 @@ impl<C, T: AsCStr<C>> TryIntoAsCStr<C> for T {
     fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(self) }
 }
 
-impl TryIntoAsCStr<c_char> for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
-impl TryIntoAsCStr<u8    > for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
+#[cfg(feature = "std")] impl TryIntoAsCStr<c_char> for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
+#[cfg(feature = "std")] impl TryIntoAsCStr<u8    > for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
 #[cfg(feature = "widestring")] impl TryIntoAsCStr<u16   > for &'_ str { type Target = widestring::U16CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Self::Target::from_str(self).map_err(|_| InteriorNulError(())) } }
 #[cfg(feature = "widestring")] impl TryIntoAsCStr<u32   > for &'_ str { type Target = widestring::U32CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Self::Target::from_str(self).map_err(|_| InteriorNulError(())) } }
 
-impl TryIntoAsCStr<c_char> for String { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
-impl TryIntoAsCStr<u8    > for String { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
+#[cfg(feature = "std")] impl TryIntoAsCStr<c_char> for String { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
+#[cfg(feature = "std")] impl TryIntoAsCStr<u8    > for String { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
 #[cfg(feature = "widestring")] impl TryIntoAsCStr<u16   > for String { type Target = widestring::U16CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Self::Target::from_str(self).map_err(|_| InteriorNulError(())) } }
 #[cfg(feature = "widestring")] impl TryIntoAsCStr<u32   > for String { type Target = widestring::U32CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Self::Target::from_str(self).map_err(|_| InteriorNulError(())) } }
 
@@ -46,23 +44,23 @@ impl<C, T: AsOptCStr<C>> TryIntoAsOptCStr<C> for T {
     fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(self) }
 }
 
-impl TryIntoAsOptCStr<c_char> for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
-impl TryIntoAsOptCStr<u8    > for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
+#[cfg(feature = "std")] impl TryIntoAsOptCStr<c_char> for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
+#[cfg(feature = "std")] impl TryIntoAsOptCStr<u8    > for &'_ str { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
 #[cfg(feature = "widestring")] impl TryIntoAsOptCStr<u16> for &'_ str { type Target = widestring::U16CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Self::Target::from_str(self).map_err(|_| InteriorNulError(())) } }
 #[cfg(feature = "widestring")] impl TryIntoAsOptCStr<u32> for &'_ str { type Target = widestring::U32CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Self::Target::from_str(self).map_err(|_| InteriorNulError(())) } }
 
-impl TryIntoAsOptCStr<c_char> for String { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
-impl TryIntoAsOptCStr<u8    > for String { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
+#[cfg(feature = "std")] impl TryIntoAsOptCStr<c_char> for String { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
+#[cfg(feature = "std")] impl TryIntoAsOptCStr<u8    > for String { type Target = CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Ok(CString::new(self)?) } }
 #[cfg(feature = "widestring")] impl TryIntoAsOptCStr<u16> for String { type Target = widestring::U16CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Self::Target::from_str(self).map_err(|_| InteriorNulError(())) } }
 #[cfg(feature = "widestring")] impl TryIntoAsOptCStr<u32> for String { type Target = widestring::U32CString; fn try_into(self) -> Result<Self::Target, InteriorNulError> { Self::Target::from_str(self).map_err(|_| InteriorNulError(())) } }
 
-impl TryIntoAsOptCStr<c_char> for Option<&'_ str> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| Ok(Some(CString::new(s)?))) } }
-impl TryIntoAsOptCStr<u8    > for Option<&'_ str> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| Ok(Some(CString::new(s)?))) } }
+#[cfg(feature = "std")] impl TryIntoAsOptCStr<c_char> for Option<&'_ str> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| Ok(Some(CString::new(s)?))) } }
+#[cfg(feature = "std")] impl TryIntoAsOptCStr<u8    > for Option<&'_ str> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| Ok(Some(CString::new(s)?))) } }
 #[cfg(feature = "widestring")] impl TryIntoAsOptCStr<u16> for Option<&'_ str> { type Target = Option<widestring::U16CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| widestring::U16CString::from_str(s).map(|s| Some(s)).map_err(|_| InteriorNulError(()))) } }
 #[cfg(feature = "widestring")] impl TryIntoAsOptCStr<u32> for Option<&'_ str> { type Target = Option<widestring::U32CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| widestring::U32CString::from_str(s).map(|s| Some(s)).map_err(|_| InteriorNulError(()))) } }
 
-impl TryIntoAsOptCStr<c_char> for Option<String> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| Ok(Some(CString::new(s)?))) } }
-impl TryIntoAsOptCStr<u8    > for Option<String> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| Ok(Some(CString::new(s)?))) } }
+#[cfg(feature = "std")] impl TryIntoAsOptCStr<c_char> for Option<String> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| Ok(Some(CString::new(s)?))) } }
+#[cfg(feature = "std")] impl TryIntoAsOptCStr<u8    > for Option<String> { type Target = Option<CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| Ok(Some(CString::new(s)?))) } }
 #[cfg(feature = "widestring")] impl TryIntoAsOptCStr<u16> for Option<String> { type Target = Option<widestring::U16CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| widestring::U16CString::from_str(s).map(|s| Some(s)).map_err(|_| InteriorNulError(()))) } }
 #[cfg(feature = "widestring")] impl TryIntoAsOptCStr<u32> for Option<String> { type Target = Option<widestring::U32CString>; fn try_into(self) -> Result<Self::Target, InteriorNulError> { self.map_or(Ok(None), |s| widestring::U32CString::from_str(s).map(|s| Some(s)).map_err(|_| InteriorNulError(()))) } }
 
@@ -70,36 +68,36 @@ impl TryIntoAsOptCStr<u8    > for Option<String> { type Target = Option<CString>
 
 #[test] fn basic_usage() {
     fn f(_: impl TryIntoAsCStr) {}
-    f("test");
+    #[cfg(feature = "std")] f("test");
     f(cstr!("test"));
-    f(CStrNonNull::from_bytes_with_nul(b"test\0").unwrap());
-    f(String::from("test"));
-    f(CString::new("test").unwrap());
-    f(CString::new("test").unwrap().as_c_str());
+    #[cfg(feature = "std")] f(CStrNonNull::from_bytes_with_nul(b"test\0").unwrap());
+    #[cfg(feature = "std")] f(String::from("test"));
+    #[cfg(feature = "std")] f(CString::new("test").unwrap());
+    #[cfg(feature = "std")] f(CString::new("test").unwrap().as_c_str());
 
 
 
     fn o(_: impl TryIntoAsOptCStr) {}
     o(());
-    o("test");
+    #[cfg(feature = "std")] o("test");
     o(cstr!("test"));
-    o(CStrNonNull::from_bytes_with_nul(b"test\0").unwrap());
-    o(String::from("test"));
-    o(CString::new("test").unwrap());
-    o(CString::new("test").unwrap().as_c_str());
+    #[cfg(feature = "std")] o(CStrNonNull::from_bytes_with_nul(b"test\0").unwrap());
+    #[cfg(feature = "std")] o(String::from("test"));
+    #[cfg(feature = "std")] o(CString::new("test").unwrap());
+    #[cfg(feature = "std")] o(CString::new("test").unwrap().as_c_str());
 
-    o(Some("test"));
+    #[cfg(feature = "std")] o(Some("test"));
     o(Some(cstr!("test")));
-    o(Some(CStrNonNull::from_bytes_with_nul(b"test\0").unwrap()));
-    o(Some(String::from("test")));
-    o(Some(CString::new("test").unwrap()));
-    o(Some(CString::new("test").unwrap().as_c_str()));
+    #[cfg(feature = "std")] o(Some(CStrNonNull::from_bytes_with_nul(b"test\0").unwrap()));
+    #[cfg(feature = "std")] o(Some(String::from("test")));
+    #[cfg(feature = "std")] o(Some(CString::new("test").unwrap()));
+    #[cfg(feature = "std")] o(Some(CString::new("test").unwrap().as_c_str()));
 
-    o(CStrPtr::from_bytes_with_nul(b"test\0").unwrap());
+    #[cfg(feature = "std")] o(CStrPtr::from_bytes_with_nul(b"test\0").unwrap());
     o(CStrPtr::NULL);
 }
 
-mod compile_tests {
+#[cfg(feature = "std")] #[allow(dead_code)] mod compile_tests {
     /// ```no_run
     /// use abistr::*;
     /// fn o(_: impl TryIntoAsOptCStr) {}
@@ -111,7 +109,7 @@ mod compile_tests {
     /// fn f(_: impl TryIntoAsCStr) {}
     /// f(());
     /// ```
-    #[allow(dead_code)] struct Unit;
+    struct Unit;
 
     /// ```no_run
     /// use abistr::*;
@@ -124,7 +122,7 @@ mod compile_tests {
     /// fn f(_: impl TryIntoAsCStr) {}
     /// f(CStrPtr::from_bytes_with_nul(b"test\0").unwrap());
     /// ```
-    #[allow(dead_code)] struct CStrPtrTest;
+    struct CStrPtrTest;
 
     /// ```no_run
     /// use abistr::*;
@@ -137,5 +135,5 @@ mod compile_tests {
     /// fn f(_: impl TryIntoAsCStr) {}
     /// f(CStrPtr::NULL);
     /// ```
-    #[allow(dead_code)] struct CStrPtrNull;
+    struct CStrPtrNull;
 }

@@ -45,30 +45,31 @@
 //!
 //! # Alternatives
 //!
-//! <code>\*const [std::os::raw::c_char]</code>
+//! <code>\*const [c_char]</code>
 //! * Pro:  Can't get any simpler for basic interop!
 //! * Con:  Requires `unsafe` to so much as shake a stick at.
 //! * Con:  Easy to create undefined behavior by messing up edge cases involving [null].
 //! * Con:  Easy to create undefined behavior by creating dangling pointers and other lifetime issues (raw pointers have no lifetimes.)
 //! * Con:  Fairly unergonomic to use directly.
 //!
-//! <code>[`std::ffi::CStr`]</code>
+//! <code>&[std::ffi::CStr]</code>
 //! * Pro:  Relatively safe!
 //! * Con:  Immediate `O(n)` length check on construction, even if you never use the string.
 //! * Con:  Being a [DST] (at least at the time of writing / rust 1.48.0), this isn't ABI compatible with `*const c_char` and thus cannot be embedded in zero-conversion structures.
 //!
-//! <code>[std::ffi::CString]</code> - per [`std::ffi::CStr`], but also:
+//! <code>[std::ffi::CString]</code> - per <code>&[std::ffi::CStr]</code>, but also:
 //! * Pro:  Dynamically allocated!
 //! * Con:  Dynamically allocated.
 //!
 //! [DST]:      https://doc.rust-lang.org/nomicon/exotic-sizes.html#dynamically-sized-types-dsts
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 
 #[doc(hidden)] pub extern crate abistr_macros;
 
 #[cfg(doc)] use crate as abistr;
-#[cfg(doc)] use std::ptr::*;
+#[cfg(doc)] use core::ptr::*;
 
 #[macro_use] mod macros;
 
@@ -83,3 +84,6 @@ mod unit;                               pub use unit::*;
 pub(crate) mod private {
     pub use crate::unit::private::*;
 }
+
+#[cfg(    feature = "std" )] use std::os::raw::c_char;
+#[cfg(not(feature = "std"))] type c_char = i8;

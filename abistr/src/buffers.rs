@@ -2,11 +2,11 @@ use crate::*;
 
 #[cfg(feature = "widestring")] use widestring::*;
 
-use std::borrow::Cow;
-use std::fmt::{self, Debug, Formatter};
-use std::ffi::*;
-use std::str::*;
-#[cfg(doc)] use std::os::raw::c_char;
+#[cfg(feature = "std")] use std::borrow::Cow;
+#[cfg(feature = "std")] use std::ffi::*;
+
+use core::fmt::{self, Debug, Formatter};
+use core::str::*;
 
 
 
@@ -170,9 +170,10 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
         Ok(())
     }
 
-    /// Convert the buffer to a <code>&[str]</code>, allocating and replacing invalid UTF8 with [`U+FFFD REPLACEMENT CHARACTER`][std::char::REPLACEMENT_CHARACTER] if necessary.
+    /// Convert the buffer to a <code>&[str]</code>, allocating and replacing invalid UTF8 with [`U+FFFD REPLACEMENT CHARACTER`][core::char::REPLACEMENT_CHARACTER] if necessary.
     ///
     /// `O(n)` to locate the terminal `\0`.
+    #[cfg(feature = "std")]
     pub fn to_string_lossy(&self) -> Cow<'_, str> { private::Unit::to_string_lossy(self.to_units()) }
 }
 
@@ -184,6 +185,7 @@ impl<const N: usize> CStrBuf<u8, N> {
     /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
     ///
     /// `O(n)` to locate the terminal `\0`.
+    #[cfg(feature = "std")]
     pub fn to_cstr(&self) -> Result<&CStr, NotNulTerminatedError> { self.to_bytes_with_nul().map(|bytes| unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }) }
 
     /// Attempt to convert the buffer to a <code>&[str]</code>, returning <code>[Err]\([Utf8Error]\)</code> instead if the underlying buffer wasn't valid UTF8.
@@ -237,7 +239,6 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 
 
 #[test] fn abi_layout() {
-    use std::os::raw::c_char;
     assert_abi_compatible!([c_char;  1], CStrBuf<u8,  1>);
     assert_abi_compatible!([c_char;  2], CStrBuf<u8,  2>);
     assert_abi_compatible!([c_char;  3], CStrBuf<u8,  3>);
@@ -399,8 +400,7 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 
 #[allow(overflowing_literals)]
 #[test] fn struct_interop_narrow() {
-    use std::mem::*;
-    use std::os::raw::c_char;
+    use core::mem::*;
 
     #[repr(C)] struct C {
         empty:          [c_char; 16],
@@ -463,12 +463,14 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.full           .to_bytes_with_nul(), Err(NotNulTerminatedError(())));
     assert_eq!(r.not_unicode    .to_bytes_with_nul(), Ok(&b"\xFF\xFF\0"[..]));
 
-    assert_eq!(r.empty          .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
-    assert_eq!(r.empty2         .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
-    assert_eq!(r.empty3         .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
-    assert_eq!(r.example        .to_cstr(), Ok(CStr::from_bytes_with_nul(b"example\0").unwrap()));
-    assert_eq!(r.full           .to_cstr(), Err(NotNulTerminatedError(())));
-    assert_eq!(r.not_unicode    .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\xFF\xFF\0").unwrap()));
+    #[cfg(feature = "std")] {
+        assert_eq!(r.empty          .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
+        assert_eq!(r.empty2         .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
+        assert_eq!(r.empty3         .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
+        assert_eq!(r.example        .to_cstr(), Ok(CStr::from_bytes_with_nul(b"example\0").unwrap()));
+        assert_eq!(r.full           .to_cstr(), Err(NotNulTerminatedError(())));
+        assert_eq!(r.not_unicode    .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\xFF\xFF\0").unwrap()));
+    }
 
     assert_eq!(r.empty          .to_str(), Ok(""));
     assert_eq!(r.empty2         .to_str(), Ok(""));
@@ -477,12 +479,14 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.full           .to_str(), Ok("ffffffffffffffff"));
     assert_eq!(r.not_unicode    .to_str().is_err(), true);
 
-    assert_eq!(r.empty          .to_string_lossy(), "");
-    assert_eq!(r.empty2         .to_string_lossy(), "");
-    assert_eq!(r.empty3         .to_string_lossy(), "");
-    assert_eq!(r.example        .to_string_lossy(), "example");
-    assert_eq!(r.full           .to_string_lossy(), "ffffffffffffffff");
-    assert_eq!(r.not_unicode    .to_string_lossy(), "\u{FFFD}\u{FFFD}");
+    #[cfg(feature = "std")] {
+        assert_eq!(r.empty          .to_string_lossy(), "");
+        assert_eq!(r.empty2         .to_string_lossy(), "");
+        assert_eq!(r.empty3         .to_string_lossy(), "");
+        assert_eq!(r.example        .to_string_lossy(), "example");
+        assert_eq!(r.full           .to_string_lossy(), "ffffffffffffffff");
+        assert_eq!(r.not_unicode    .to_string_lossy(), "\u{FFFD}\u{FFFD}");
+    }
 
     assert_eq!(r.empty          .validate().is_err(), false);
     assert_eq!(r.empty2         .validate().is_err(), false);
@@ -491,12 +495,14 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.full           .validate().is_err(), true);
     assert_eq!(r.not_unicode    .validate().is_err(), false);
 
-    assert_eq!(format!("{:?}", r.empty          ), "\"\"" );
-    assert_eq!(format!("{:?}", r.empty2         ), "\"\"" );
-    assert_eq!(format!("{:?}", r.empty3         ), "\"\"" );
-    assert_eq!(format!("{:?}", r.example        ), "\"example\"" );
-    assert_eq!(format!("{:?}", r.full           ), "\"ffffffffffffffff\"" );
-    assert_eq!(format!("{:?}", r.not_unicode    ), "\"\\xff\\xff\"" );
+    #[cfg(feature = "std")] {
+        assert_eq!(format!("{:?}", r.empty          ), "\"\"" );
+        assert_eq!(format!("{:?}", r.empty2         ), "\"\"" );
+        assert_eq!(format!("{:?}", r.empty3         ), "\"\"" );
+        assert_eq!(format!("{:?}", r.example        ), "\"example\"" );
+        assert_eq!(format!("{:?}", r.full           ), "\"ffffffffffffffff\"" );
+        assert_eq!(format!("{:?}", r.not_unicode    ), "\"\\xff\\xff\"" );
+    }
 
     unsafe {
         assert_eq!(r.empty          .buffer_mut(), b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
@@ -532,9 +538,9 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 }
 
 #[test] fn struct_interop_wide() {
-    use std::mem::*;
+    use core::mem::*;
 
-    macro_rules! u { ($s:literal) => { &$s.iter().copied().map(|b| b as u16).collect::<Vec<u16>>()[..] } }
+    macro_rules! u { ($s:literal) => { &$s.map(|b| b as u16)[..] } }
 
     #[repr(C)] struct C {
         empty:          [u16; 16],
@@ -613,12 +619,14 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
         assert_eq!(r.not_unicode    .to_u16str(), U16Str::from_slice(&[0xDC00, 0xDC00]));
     }
 
-    assert_eq!(r.empty          .to_string_lossy(), "");
-    assert_eq!(r.empty2         .to_string_lossy(), "");
-    assert_eq!(r.empty3         .to_string_lossy(), "");
-    assert_eq!(r.example        .to_string_lossy(), "example");
-    assert_eq!(r.full           .to_string_lossy(), "ffffffffffffffff");
-    assert_eq!(r.not_unicode    .to_string_lossy(), "\u{FFFD}\u{FFFD}");
+    #[cfg(feature = "std")] {
+        assert_eq!(r.empty          .to_string_lossy(), "");
+        assert_eq!(r.empty2         .to_string_lossy(), "");
+        assert_eq!(r.empty3         .to_string_lossy(), "");
+        assert_eq!(r.example        .to_string_lossy(), "example");
+        assert_eq!(r.full           .to_string_lossy(), "ffffffffffffffff");
+        assert_eq!(r.not_unicode    .to_string_lossy(), "\u{FFFD}\u{FFFD}");
+    }
 
     assert_eq!(r.empty          .validate().is_err(), false);
     assert_eq!(r.empty2         .validate().is_err(), false);
@@ -627,12 +635,14 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.full           .validate().is_err(), true);
     assert_eq!(r.not_unicode    .validate().is_err(), false);
 
-    assert_eq!(format!("{:?}", r.empty          ), "\"\"" );
-    assert_eq!(format!("{:?}", r.empty2         ), "\"\"" );
-    assert_eq!(format!("{:?}", r.empty3         ), "\"\"" );
-    assert_eq!(format!("{:?}", r.example        ), "\"example\"" );
-    assert_eq!(format!("{:?}", r.full           ), "\"ffffffffffffffff\"" );
-    assert_eq!(format!("{:?}", r.not_unicode    ), "\"\\udc00\\udc00\"" );
+    #[cfg(feature = "std")] {
+        assert_eq!(format!("{:?}", r.empty          ), "\"\"" );
+        assert_eq!(format!("{:?}", r.empty2         ), "\"\"" );
+        assert_eq!(format!("{:?}", r.empty3         ), "\"\"" );
+        assert_eq!(format!("{:?}", r.example        ), "\"example\"" );
+        assert_eq!(format!("{:?}", r.full           ), "\"ffffffffffffffff\"" );
+        assert_eq!(format!("{:?}", r.not_unicode    ), "\"\\udc00\\udc00\"" );
+    }
 
     unsafe {
         assert_eq!(r.empty          .buffer_mut(), u!(b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"));

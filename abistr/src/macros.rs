@@ -4,14 +4,14 @@
 #[cfg(test)] macro_rules! assert_abi_compatible {
     ( $left:ty, $right:ty ) => {{
         assert!(
-            std::mem::size_of::<$left>() == std::mem::size_of::<$right>(),
+            core::mem::size_of::<$left>() == core::mem::size_of::<$right>(),
             "ABIs not compatible: size_of::<{}>() == {} != {} == size_of::<{}>()",
-            stringify!($left), std::mem::size_of::<$left>(), std::mem::size_of::<$right>(), stringify!($right)
+            stringify!($left), core::mem::size_of::<$left>(), core::mem::size_of::<$right>(), stringify!($right)
         );
         assert!(
-            std::mem::align_of::<$left>() == std::mem::align_of::<$right>(),
+            core::mem::align_of::<$left>() == core::mem::align_of::<$right>(),
             "ABIs not compatible: align_of::<{}>() == {} != {} == align_of::<{}>()",
-            stringify!($left), std::mem::align_of::<$left>(), std::mem::align_of::<$right>(), stringify!($right)
+            stringify!($left), core::mem::align_of::<$left>(), core::mem::align_of::<$right>(), stringify!($right)
         );
     }};
 }

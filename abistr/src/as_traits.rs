@@ -1,8 +1,8 @@
 use crate::*;
 
-use std::ffi::*;
-use std::os::raw::c_char;
-use std::ptr::*;
+#[cfg(feature = "std")] use std::ffi::*;
+
+use core::ptr::*;
 
 
 
@@ -24,11 +24,11 @@ unsafe impl AsCStr<u8   > for CStrNonNull<'_, u8    > { fn as_cstr(&self) -> *co
 unsafe impl AsCStr<u16  > for CStrNonNull<'_, u16   > { fn as_cstr(&self) -> *const u16 { self.as_ptr() } }
 unsafe impl AsCStr<u32  > for CStrNonNull<'_, u32   > { fn as_cstr(&self) -> *const u32 { self.as_ptr() } }
 
-unsafe impl AsCStr<i8> for &'_ CStr { fn as_cstr(&self) -> *const i8 { self.as_ptr().cast() } }
-unsafe impl AsCStr<u8> for &'_ CStr { fn as_cstr(&self) -> *const u8 { self.as_ptr().cast() } }
+#[cfg(feature = "std")] unsafe impl AsCStr<i8> for &'_ CStr { fn as_cstr(&self) -> *const i8 { self.as_ptr().cast() } }
+#[cfg(feature = "std")] unsafe impl AsCStr<u8> for &'_ CStr { fn as_cstr(&self) -> *const u8 { self.as_ptr().cast() } }
 
-unsafe impl AsCStr<i8> for CString { fn as_cstr(&self) -> *const i8 { self.as_ptr().cast() } }
-unsafe impl AsCStr<u8> for CString { fn as_cstr(&self) -> *const u8 { self.as_ptr().cast() } }
+#[cfg(feature = "std")] unsafe impl AsCStr<i8> for CString { fn as_cstr(&self) -> *const i8 { self.as_ptr().cast() } }
+#[cfg(feature = "std")] unsafe impl AsCStr<u8> for CString { fn as_cstr(&self) -> *const u8 { self.as_ptr().cast() } }
 
 #[cfg(feature = "widestring")] unsafe impl AsCStr<u16> for &'_ widestring::U16CStr { fn as_cstr(&self) -> *const u16 { self.as_ptr() } }
 #[cfg(feature = "widestring")] unsafe impl AsCStr<u32> for &'_ widestring::U32CStr { fn as_cstr(&self) -> *const u32 { self.as_ptr() } }

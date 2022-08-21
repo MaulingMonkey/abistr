@@ -1,4 +1,4 @@
-use std::fmt::{self, Formatter};
+use core::fmt::{self, Formatter};
 
 pub(crate) fn cstr_bytes(bytes: &[u8], f: &mut Formatter) -> fmt::Result {
     write!(f, "\"")?;

@@ -18,17 +18,17 @@ impl Unit for u16 {}
 impl Unit for u32 {}
 
 pub(crate) mod private {
-    use std::borrow::Cow;
-    use std::char::REPLACEMENT_CHARACTER;
-    use std::fmt::{self, Formatter};
-    use std::os::raw::c_char;
+    use crate::*;
+    #[cfg(feature = "std")] use std::borrow::Cow;
+    use core::char::REPLACEMENT_CHARACTER;
+    use core::fmt::{self, Formatter};
 
     pub trait Unit : Default + Copy + PartialEq + 'static {
         type CChar : 'static; // XXX: eliminate?
         const NUL : Self;
         const EMPTY : &'static [Self; 1];
         fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result;
-        fn to_string_lossy(buf: &[Self]) -> Cow<str>;
+        #[cfg(feature = "std")] fn to_string_lossy(buf: &[Self]) -> Cow<str>;
         fn zeroed<const N: usize>() -> [Self; N];
     }
 
@@ -37,8 +37,8 @@ pub(crate) mod private {
         const NUL : Self = 0;
         const EMPTY : &'static [Self; 1] = &[0];
         fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(buf, fmt) }
-        fn to_string_lossy(buf: &[Self]) -> Cow<str> { String::from_utf8_lossy(buf) }
-        fn zeroed<const N: usize>() -> [Self; N] { unsafe { std::mem::zeroed() } }
+        #[cfg(feature = "std")] fn to_string_lossy(buf: &[Self]) -> Cow<str> { String::from_utf8_lossy(buf) }
+        fn zeroed<const N: usize>() -> [Self; N] { unsafe { core::mem::zeroed() } }
     }
 
     impl Unit for u16 {
@@ -46,8 +46,8 @@ pub(crate) mod private {
         const NUL : Self = 0;
         const EMPTY : &'static [Self; 1] = &[0];
         fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result { crate::fmt::c16_units(buf, fmt) }
-        fn to_string_lossy(buf: &[Self]) -> Cow<str> { Cow::Owned(String::from_utf16_lossy(buf)) }
-        fn zeroed<const N: usize>() -> [Self; N] { unsafe { std::mem::zeroed() } }
+        #[cfg(feature = "std")] fn to_string_lossy(buf: &[Self]) -> Cow<str> { Cow::Owned(String::from_utf16_lossy(buf)) }
+        fn zeroed<const N: usize>() -> [Self; N] { unsafe { core::mem::zeroed() } }
     }
 
     impl Unit for u32 {
@@ -55,8 +55,8 @@ pub(crate) mod private {
         const NUL : Self = 0;
         const EMPTY : &'static [Self; 1] = &[0];
         fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result { crate::fmt::c32_units(buf, fmt) }
-        fn to_string_lossy(buf: &[Self]) -> Cow<str> { Cow::Owned(buf.iter().copied().map(|ch| std::char::from_u32(ch).unwrap_or(REPLACEMENT_CHARACTER)).collect::<String>()) }
-        fn zeroed<const N: usize>() -> [Self; N] { unsafe { std::mem::zeroed() } }
+        #[cfg(feature = "std")] fn to_string_lossy(buf: &[Self]) -> Cow<str> { Cow::Owned(buf.iter().copied().map(|ch| core::char::from_u32(ch).unwrap_or(REPLACEMENT_CHARACTER)).collect::<String>()) }
+        fn zeroed<const N: usize>() -> [Self; N] { unsafe { core::mem::zeroed() } }
     }
 }
 

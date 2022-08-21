@@ -1,7 +1,7 @@
 use proc_macro::{TokenStream, TokenTree, Delimiter, Group, Ident, Literal, Punct, Spacing, Span};
 
-use std::convert::TryFrom;
-use std::iter::FromIterator;
+use core::convert::TryFrom;
+use core::iter::FromIterator;
 
 
 pub(super) trait Unit : From<u8> {
@@ -187,7 +187,7 @@ fn parse_str<U: Unit>(literal: &Literal) -> Result<TokenStream, TokenStream> {
                         }
                         if v == 0 {
                             Err(compile_error("interior `\0` not permitted in C string", s))?
-                        } else if std::mem::size_of::<U>() != 1 {
+                        } else if core::mem::size_of::<U>() != 1 {
                             Err(compile_error("`\\x` escape sequences are ambiguous - and thus forbidden - inside unicode strings (should it be 1 byte? 1 code unit? 2 hex values? 4 hex values?)", s))?
                         } else if !byte && v > 0x7F {
                             Err(compile_error("this form of character escape may only be used with characters in the range [\\x00-\\x7f]", s))?

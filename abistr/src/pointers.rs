@@ -2,13 +2,13 @@ use crate::*;
 
 #[cfg(feature = "widestring")] use widestring::*;
 
-use std::borrow::Cow;
-use std::ffi::*;
-use std::fmt::{self, Debug, Formatter};
-use std::marker::PhantomData;
-#[allow(unused_imports)] use std::os::raw::c_char;
-use std::ptr::*;
-use std::str::Utf8Error;
+#[cfg(feature = "std")] use std::borrow::Cow;
+#[cfg(feature = "std")] use std::ffi::*;
+
+use core::fmt::{self, Debug, Formatter};
+use core::marker::PhantomData;
+use core::ptr::*;
+use core::str::Utf8Error;
 
 
 
@@ -67,7 +67,7 @@ impl<'s, U: Unit> CStrPtr<'s, U> {
     pub fn to_units(&self) -> &'s [U] {
         if self.ptr.is_null() { return &[]; }
         let start = self.ptr.cast();
-        unsafe { std::slice::from_raw_parts(start, strlen(start)) }
+        unsafe { core::slice::from_raw_parts(start, strlen(start)) }
     }
 
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, including the terminal `\0`.
@@ -76,16 +76,18 @@ impl<'s, U: Unit> CStrPtr<'s, U> {
     pub fn to_units_with_nul(&self) -> &'s [U] {
         if self.ptr.is_null() { return U::EMPTY; }
         let start = self.ptr.cast();
-        unsafe { std::slice::from_raw_parts(start, strlen(start) + 1) }
+        unsafe { core::slice::from_raw_parts(start, strlen(start) + 1) }
     }
 
     /// Convert `self` to a <code>[Cow]\<[str]\></code>.
     ///
     /// `O(n)` to find the terminal `\0` and validate, and to convert UTF8ish data to UTF8 if necesssary.
+    #[cfg(feature = "std")]
     pub fn to_string_lossy(&self) -> Cow<'s, str> { U::to_string_lossy(self.to_units()) }
 }
 
 impl<'s> CStrPtr<'s, u8> {
+    #[cfg(feature = "std")]
     #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromBytesWithNulError> { CStr::from_bytes_with_nul(bytes).map(Self::from) }
     #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { Self::from_units_with_nul_unchecked(bytes) }
     #[doc(hidden)] pub fn to_bytes(&self) -> &'s [u8] { self.to_units() }
@@ -94,6 +96,7 @@ impl<'s> CStrPtr<'s, u8> {
     /// Convert `self` to a [`std::ffi::CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
+    #[cfg(feature = "std")]
     pub fn to_cstr(&self) -> &'s CStr {
         if self.ptr.is_null() {
             unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") }
@@ -105,7 +108,7 @@ impl<'s> CStrPtr<'s, u8> {
     /// Convert `self` to a <code>&[str]</code>.
     ///
     /// `O(n)` to find the terminal `\0` and validate UTF8.
-    pub fn to_str(&self) -> Result<&'s str, Utf8Error> { self.to_cstr().to_str() }
+    pub fn to_str(&self) -> Result<&'s str, Utf8Error> { core::str::from_utf8(self.to_units()) }
 }
 
 #[cfg(feature = "widestring")] impl<'s> CStrPtr<'s, u16> {
@@ -152,10 +155,12 @@ impl<U: Unit> Default for CStrPtr<'_, U> {
     fn default() -> Self { Self { ptr: U::EMPTY.as_ptr().cast(), phantom: PhantomData } }
 }
 
+#[cfg(feature = "std")]
 impl<'s> From<CStrPtr<'s>> for &'s CStr {
     fn from(s: CStrPtr<'s>) -> Self { s.to_cstr() }
 }
 
+#[cfg(feature = "std")]
 impl<'s> From<&'s CStr> for CStrPtr<'s> {
     fn from(s: &'s CStr) -> Self { unsafe { CStrPtr::from_ptr_unbounded(s.as_ptr().cast()) } }
 }
@@ -219,7 +224,7 @@ impl<'s, U: Unit> CStrNonNull<'s, U> {
     /// `O(n)` to find the terminal `\0`.
     pub fn to_units(&self) -> &'s [U] {
         let start = self.ptr.as_ptr().cast();
-        unsafe { std::slice::from_raw_parts(start, strlen(start) + 0) }
+        unsafe { core::slice::from_raw_parts(start, strlen(start) + 0) }
     }
 
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, including the terminal `\0`.
@@ -227,30 +232,33 @@ impl<'s, U: Unit> CStrNonNull<'s, U> {
     /// `O(n)` to find the terminal `\0`.
     pub fn to_units_with_nul(&self) -> &'s [U] {
         let start = self.ptr.as_ptr().cast();
-        unsafe { std::slice::from_raw_parts(start, strlen(start) + 1) }
+        unsafe { core::slice::from_raw_parts(start, strlen(start) + 1) }
     }
 
     /// Convert `self` to a <code>[Cow]\<[str]\></code>.
     ///
     /// `O(n)` to find the terminal `\0` and validate, and to convert UTF8ish data to UTF8 if necesssary.
+    #[cfg(feature = "std")]
     pub fn to_string_lossy(&self) -> Cow<'s, str> { U::to_string_lossy(self.to_units()) }
 }
 
 impl<'s> CStrNonNull<'s, u8> {
+    #[cfg(feature = "std")]
     #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromBytesWithNulError> { CStr::from_bytes_with_nul(bytes).map(Self::from) }
     #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { Self::from_units_with_nul_unchecked(bytes) }
-    #[doc(hidden)] pub fn to_bytes(&self) -> &'s [u8] { self.to_cstr().to_bytes() }
-    #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_cstr().to_bytes_with_nul() }
+    #[doc(hidden)] pub fn to_bytes(&self) -> &'s [u8] { self.to_units() }
+    #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_units_with_nul() }
 
     /// Convert `self` to a [`std::ffi::CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
+    #[cfg(feature = "std")]
     pub fn to_cstr(&self) -> &'s CStr { unsafe { CStr::from_ptr(self.as_ptr()) } }
 
     /// Convert `self` to a <code>&[str]</code>.
     ///
     /// `O(n)` to find the terminal `\0` and validate UTF8.
-    pub fn to_str(&self) -> Result<&'s str, Utf8Error> { self.to_cstr().to_str() }
+    pub fn to_str(&self) -> Result<&'s str, Utf8Error> { core::str::from_utf8(self.to_units()) }
 }
 
 #[cfg(feature = "widestring")] impl<'s> CStrNonNull<'s, u16> {
@@ -285,10 +293,12 @@ impl<U: Unit> Default for CStrNonNull<'_, U> {
     fn default() -> Self { Self { ptr: unsafe { NonNull::new_unchecked(U::EMPTY.as_ptr() as *mut _) }, phantom: PhantomData } }
 }
 
+#[cfg(feature = "std")]
 impl<'s> From<CStrNonNull<'s>> for &'s CStr {
     fn from(s: CStrNonNull<'s>) -> Self { s.to_cstr() }
 }
 
+#[cfg(feature = "std")]
 impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     fn from(s: &'s CStr) -> Self { unsafe { CStrNonNull::from_ptr_unchecked_unbounded(s.as_ptr().cast()) } }
 }
@@ -308,8 +318,8 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
 
 #[test] fn struct_interop_narrow() {
-    use std::mem::*;
-    use std::os::raw::c_char;
+    use crate::*;
+    use core::mem::*;
 
     #[repr(C)] struct C {
         null:           *const c_char,
@@ -395,16 +405,18 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     assert_eq!(r2.example       .as_ref().map_or(&b"\0"[..], |s| s.to_bytes_with_nul()), &b"example\0"[..]);
     assert_eq!(r2.not_unicode   .as_ref().map_or(&b"\0"[..], |s| s.to_bytes_with_nul()), &b"\xFF\xFF\0"[..]);
 
-    assert_eq!(r1.null          .to_cstr(), CStr::from_bytes_with_nul(b"\0").unwrap());
-    assert_eq!(r1.empty         .to_cstr(), CStr::from_bytes_with_nul(b"\0").unwrap());
-    assert_eq!(r1.example       .to_cstr(), CStr::from_bytes_with_nul(b"example\0").unwrap());
-    assert_eq!(r1.not_unicode   .to_cstr(), CStr::from_bytes_with_nul(b"\xFF\xFF\0").unwrap());
+    #[cfg(feature = "std")] {
+        assert_eq!(r1.null          .to_cstr(), CStr::from_bytes_with_nul(b"\0").unwrap());
+        assert_eq!(r1.empty         .to_cstr(), CStr::from_bytes_with_nul(b"\0").unwrap());
+        assert_eq!(r1.example       .to_cstr(), CStr::from_bytes_with_nul(b"example\0").unwrap());
+        assert_eq!(r1.not_unicode   .to_cstr(), CStr::from_bytes_with_nul(b"\xFF\xFF\0").unwrap());
 
-    let empty = CStr::from_bytes_with_nul(b"\0").unwrap();
-    assert_eq!(r2.null          .as_ref().map_or(empty, |s| s.to_cstr()), CStr::from_bytes_with_nul(b"\0").unwrap());
-    assert_eq!(r2.empty         .as_ref().map_or(empty, |s| s.to_cstr()), CStr::from_bytes_with_nul(b"\0").unwrap());
-    assert_eq!(r2.example       .as_ref().map_or(empty, |s| s.to_cstr()), CStr::from_bytes_with_nul(b"example\0").unwrap());
-    assert_eq!(r2.not_unicode   .as_ref().map_or(empty, |s| s.to_cstr()), CStr::from_bytes_with_nul(b"\xFF\xFF\0").unwrap());
+        let empty = CStr::from_bytes_with_nul(b"\0").unwrap();
+        assert_eq!(r2.null          .as_ref().map_or(empty, |s| s.to_cstr()), CStr::from_bytes_with_nul(b"\0").unwrap());
+        assert_eq!(r2.empty         .as_ref().map_or(empty, |s| s.to_cstr()), CStr::from_bytes_with_nul(b"\0").unwrap());
+        assert_eq!(r2.example       .as_ref().map_or(empty, |s| s.to_cstr()), CStr::from_bytes_with_nul(b"example\0").unwrap());
+        assert_eq!(r2.not_unicode   .as_ref().map_or(empty, |s| s.to_cstr()), CStr::from_bytes_with_nul(b"\xFF\xFF\0").unwrap());
+    }
 
     assert_eq!(r1.null          .to_str(), Ok(""));
     assert_eq!(r1.empty         .to_str(), Ok(""));
@@ -416,29 +428,31 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     assert_eq!(r2.example       .as_ref().map_or(Ok(""),    |s| s.to_str()), Ok("example"));
     assert_eq!(r2.not_unicode   .as_ref().map_or(false,     |s| s.to_str().is_err()), true);
 
-    assert_eq!(r1.null          .to_string_lossy(), "");
-    assert_eq!(r1.empty         .to_string_lossy(), "");
-    assert_eq!(r1.example       .to_string_lossy(), "example");
-    assert_eq!(r1.not_unicode   .to_string_lossy(), "\u{FFFD}\u{FFFD}");
+    #[cfg(feature = "std")] {
+        assert_eq!(r1.null          .to_string_lossy(), "");
+        assert_eq!(r1.empty         .to_string_lossy(), "");
+        assert_eq!(r1.example       .to_string_lossy(), "example");
+        assert_eq!(r1.not_unicode   .to_string_lossy(), "\u{FFFD}\u{FFFD}");
 
-    assert_eq!(r2.null          .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
-    assert_eq!(r2.empty         .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
-    assert_eq!(r2.example       .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "example");
-    assert_eq!(r2.not_unicode   .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "\u{FFFD}\u{FFFD}");
+        assert_eq!(r2.null          .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
+        assert_eq!(r2.empty         .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
+        assert_eq!(r2.example       .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "example");
+        assert_eq!(r2.not_unicode   .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "\u{FFFD}\u{FFFD}");
 
-    assert_eq!(format!("{:?}", r1.null          ), "\"\"" );
-    assert_eq!(format!("{:?}", r1.empty         ), "\"\"" );
-    assert_eq!(format!("{:?}", r1.example       ), "\"example\"" );
-    assert_eq!(format!("{:?}", r1.not_unicode   ), "\"\\xff\\xff\"" );
+        assert_eq!(format!("{:?}", r1.null          ), "\"\"" );
+        assert_eq!(format!("{:?}", r1.empty         ), "\"\"" );
+        assert_eq!(format!("{:?}", r1.example       ), "\"example\"" );
+        assert_eq!(format!("{:?}", r1.not_unicode   ), "\"\\xff\\xff\"" );
 
-    assert_eq!(format!("{:?}", r2.null          ), "None" );
-    assert_eq!(format!("{:?}", r2.empty         ), "Some(\"\")" );
-    assert_eq!(format!("{:?}", r2.example       ), "Some(\"example\")" );
-    assert_eq!(format!("{:?}", r2.not_unicode   ), "Some(\"\\xff\\xff\")" );
+        assert_eq!(format!("{:?}", r2.null          ), "None" );
+        assert_eq!(format!("{:?}", r2.empty         ), "Some(\"\")" );
+        assert_eq!(format!("{:?}", r2.example       ), "Some(\"example\")" );
+        assert_eq!(format!("{:?}", r2.not_unicode   ), "Some(\"\\xff\\xff\")" );
+    }
 }
 
 #[test] fn struct_interop_wide() {
-    use std::mem::*;
+    use core::mem::*;
 
     let u_empty : &[u16; 0] = &[];
     let u_empty0 = &[0u16];
@@ -560,28 +574,30 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
         assert_eq!(r2.not_unicode   .as_ref().map_or(&[0xBAD][..], |s| s.to_u16str().as_slice()), &u_not_unicode[..]);
     }
 
-    assert_eq!(r1.null          .to_string_lossy(), "");
-    assert_eq!(r1.empty         .to_string_lossy(), "");
-    assert_eq!(r1.example       .to_string_lossy(), "example");
-    assert_eq!(r1.not_unicode   .to_string_lossy(), "\u{FFFD}\u{FFFD}");
+    #[cfg(feature = "std")] {
+        assert_eq!(r1.null          .to_string_lossy(), "");
+        assert_eq!(r1.empty         .to_string_lossy(), "");
+        assert_eq!(r1.example       .to_string_lossy(), "example");
+        assert_eq!(r1.not_unicode   .to_string_lossy(), "\u{FFFD}\u{FFFD}");
 
-    assert_eq!(r2.null          .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
-    assert_eq!(r2.empty         .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
-    assert_eq!(r2.example       .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "example");
-    assert_eq!(r2.not_unicode   .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "\u{FFFD}\u{FFFD}");
+        assert_eq!(r2.null          .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
+        assert_eq!(r2.empty         .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "");
+        assert_eq!(r2.example       .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "example");
+        assert_eq!(r2.not_unicode   .as_ref().map_or(Cow::Borrowed(""), |s| s.to_string_lossy()), "\u{FFFD}\u{FFFD}");
 
-    assert_eq!(format!("{:?}", r1.null          ), "\"\"" );
-    assert_eq!(format!("{:?}", r1.empty         ), "\"\"" );
-    assert_eq!(format!("{:?}", r1.example       ), "\"example\"" );
-    assert_eq!(format!("{:?}", r1.not_unicode   ), "\"\\udc00\\udc00\"" );
+        assert_eq!(format!("{:?}", r1.null          ), "\"\"" );
+        assert_eq!(format!("{:?}", r1.empty         ), "\"\"" );
+        assert_eq!(format!("{:?}", r1.example       ), "\"example\"" );
+        assert_eq!(format!("{:?}", r1.not_unicode   ), "\"\\udc00\\udc00\"" );
 
-    assert_eq!(format!("{:?}", r2.null          ), "None" );
-    assert_eq!(format!("{:?}", r2.empty         ), "Some(\"\")" );
-    assert_eq!(format!("{:?}", r2.example       ), "Some(\"example\")" );
-    assert_eq!(format!("{:?}", r2.not_unicode   ), "Some(\"\\udc00\\udc00\")" );
+        assert_eq!(format!("{:?}", r2.null          ), "None" );
+        assert_eq!(format!("{:?}", r2.empty         ), "Some(\"\")" );
+        assert_eq!(format!("{:?}", r2.example       ), "Some(\"example\")" );
+        assert_eq!(format!("{:?}", r2.not_unicode   ), "Some(\"\\udc00\\udc00\")" );
+    }
 }
 
-#[allow(dead_code)] mod cstrptr_lifetime_tests {
+#[cfg(feature = "std")] #[allow(dead_code)] mod cstrptr_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
     /// fn f(_: CStrPtr) {}
@@ -668,7 +684,7 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     struct ToStringLossy;
 }
 
-#[allow(dead_code)] mod cstrptr16_lifetime_tests {
+#[cfg(feature = "std")] #[allow(dead_code)] mod cstrptr16_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
     /// fn f(_: CStrPtr<u16>) {}
@@ -757,7 +773,7 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     struct ToStringLossy;
 }
 
-#[allow(dead_code)] mod cstrnonnull_lifetime_tests {
+#[cfg(feature = "std")] #[allow(dead_code)] mod cstrnonnull_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
     /// fn f(_: CStrNonNull) {}
@@ -844,7 +860,7 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     struct ToStringLossy;
 }
 
-#[allow(dead_code)] mod cstrnonnull16_lifetime_tests {
+#[cfg(feature = "std")] #[allow(dead_code)] mod cstrnonnull16_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
     /// fn f(_: CStrNonNull<u16>) {}
