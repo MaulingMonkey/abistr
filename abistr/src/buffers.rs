@@ -1,5 +1,7 @@
 use crate::*;
 
+#[cfg(feature = "widestring-0-4")] use widestring_0_4::*;
+
 use std::borrow::Cow;
 use std::fmt::{self, Debug, Formatter};
 use std::ffi::*;
@@ -190,6 +192,32 @@ impl<const N: usize> CStrBuf<u8, N> {
     pub fn to_str(&self) -> Result<&str, Utf8Error> { from_utf8(self.to_bytes()) }
 }
 
+#[cfg(feature = "widestring-0-4")] impl<const N: usize> CStrBuf<u16, N> {
+    /// Attempt to convert the buffer to a [`U16CStr`], returning <code>[Err]\([NotNulTerminatedError]\)</code> instead if the underlying buffer isn't `\0`-terminated.
+    /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
+    ///
+    /// `O(n)` to locate the terminal `\0`.
+    pub fn to_u16cstr(&self) -> Result<&U16CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U16CStr::from_slice_with_nul_unchecked(units) }) }
+
+    /// Convert the buffer to a [`U16Str`].
+    ///
+    /// `O(n)` to locate the terminal `\0`.
+    pub fn to_u16str(&self) -> &U16Str { U16Str::from_slice(self.to_units()) }
+}
+
+#[cfg(feature = "widestring-0-4")] impl<const N: usize> CStrBuf<u32, N> {
+    /// Attempt to convert the buffer to a [`U32CStr`], returning <code>[Err]\([NotNulTerminatedError]\)</code> instead if the underlying buffer isn't `\0`-terminated.
+    /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
+    ///
+    /// `O(n)` to locate the terminal `\0`.
+    pub fn to_u32cstr(&self) -> Result<&U32CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U32CStr::from_slice_with_nul_unchecked(units) }) }
+
+    /// Convert the buffer to a [`U32Str`].
+    ///
+    /// `O(n)` to locate the terminal `\0`.
+    pub fn to_u32str(&self) -> &U32Str { U32Str::from_slice(self.to_units()) }
+}
+
 impl<U: Unit, const N: usize> Default for CStrBuf<U, N> {
     fn default() -> Self { Self { buffer: U::zeroed() } }
 }
@@ -248,7 +276,7 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 
 
 
-#[test] fn from() {
+#[test] fn from8() {
     type CB8 = CStrBuf<u8, 8>;
     {
         assert_eq!(CB8::from_truncate(b"1234567890").to_bytes(), b"1234567");
@@ -268,9 +296,30 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     }
 }
 
+#[test] fn from16() {
+    type CB8 = CStrBuf<u16, 8>;
+    let u12345678910 = [1u16, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    {
+        assert_eq!(CB8::from_truncate(&u12345678910).to_units(), &u12345678910[..7]);
+    }
+    unsafe {
+        assert_eq!(CB8::from_truncate_without_nul(&u12345678910).to_units(), &u12345678910[..8]);
+    }
+    {
+        assert_eq!(CB8::try_from(&u12345678910[..10]).is_err(), true);
+        assert_eq!(CB8::try_from(&u12345678910[.. 8]).is_err(), true);
+        assert_eq!(CB8::try_from(&u12345678910[.. 7]).unwrap().to_units(), &u12345678910[..7]);
+    }
+    unsafe {
+        assert_eq!(CB8::try_from_without_nul(&u12345678910[..10]).is_err(), true);
+        assert_eq!(CB8::try_from_without_nul(&u12345678910[.. 8]).unwrap().to_units(), &u12345678910[.. 8]);
+        assert_eq!(CB8::try_from_without_nul(&u12345678910[.. 7]).unwrap().to_units(), &u12345678910[.. 7]);
+    }
+}
 
 
-#[test] fn set() {
+
+#[test] fn set8() {
     type CB8 = CStrBuf<u8, 8>;
     let reference = CB8::from_truncate(b"ref");
     {
@@ -307,10 +356,49 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     }
 }
 
+#[test] fn set16() {
+    type CB8 = CStrBuf<u16, 8>;
+    let u12345678910 = [1u16, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let u_ref = [b'r' as u16, b'e' as u16, b'f' as u16];
+    let reference = CB8::from_truncate(&u_ref);
+    {
+        let mut cb = reference;
+        assert_eq!(cb.set_truncate(&u12345678910).is_err(), true);
+        assert_eq!(cb.to_units(), &u12345678910[..7]);
+        assert_eq!(cb.set_truncate(&u12345678910[..4]).is_err(), false);
+        assert_eq!(cb.to_units(), &u12345678910[..4]);
+    }
+    unsafe {
+        let mut cb = reference;
+        assert_eq!(cb.set_truncate_without_nul(&u12345678910[..10]).is_err(), true);
+        assert_eq!(cb.to_units(), &u12345678910[..8]);
+        assert_eq!(cb.set_truncate_without_nul(&u12345678910[..4]).is_err(), false);
+        assert_eq!(cb.to_units(), &u12345678910[..4]);
+    }
+    {
+        let mut cb = reference;
+        assert_eq!(cb.try_set(&u12345678910[..10]).is_err(), true);
+        assert_eq!(cb.to_units(), u_ref);
+        assert_eq!(cb.try_set(&u12345678910[..8]).is_err(), true);
+        assert_eq!(cb.to_units(), u_ref);
+        assert_eq!(cb.try_set(&u12345678910[..4]).is_err(), false);
+        assert_eq!(cb.to_units(),&u12345678910[..4]);
+    }
+    unsafe {
+        let mut cb = reference;
+        assert_eq!(cb.try_set_without_nul(&u12345678910[..10]).is_err(), true);
+        assert_eq!(cb.to_units(), u_ref);
+        assert_eq!(cb.try_set_without_nul(&u12345678910[..8]).is_err(), false);
+        assert_eq!(cb.to_units(), &u12345678910[..8]);
+        assert_eq!(cb.try_set_without_nul(&u12345678910[..4]).is_err(), false);
+        assert_eq!(cb.to_units(), &u12345678910[..4]);
+    }
+}
+
 
 
 #[allow(overflowing_literals)]
-#[test] fn struct_interop() {
+#[test] fn struct_interop_narrow() {
     use std::mem::*;
     use std::os::raw::c_char;
 
@@ -434,6 +522,142 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.example        .buffer(), b"example\0\0\0\0\0\0\0\0\0");
     assert_eq!(r.full           .buffer(), b"fffffffffffffff\0"); // modified with terminal \0
     assert_eq!(r.not_unicode    .buffer(), b"\xFF\xFF\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+
+    assert_eq!(r.empty          .validate().is_err(), false);
+    assert_eq!(r.empty2         .validate().is_err(), false);
+    assert_eq!(r.empty3         .validate().is_err(), false);
+    assert_eq!(r.example        .validate().is_err(), false);
+    assert_eq!(r.full           .validate().is_err(), false); // now valid
+    assert_eq!(r.not_unicode    .validate().is_err(), false);
+}
+
+#[test] fn struct_interop_wide() {
+    use std::mem::*;
+
+    macro_rules! u { ($s:literal) => { &$s.iter().copied().map(|b| b as u16).collect::<Vec<u16>>()[..] } }
+
+    #[repr(C)] struct C {
+        empty:          [u16; 16],
+        empty2:         [u16; 16],
+        empty3:         [u16; 16],
+        example:        [u16; 16],
+        full:           [u16; 16],
+        not_unicode:    [u16; 16],
+    }
+    let mut c = C {
+        empty:          [0;         16],
+        empty2:         [b'f' as _; 16],
+        empty3:         [b'f' as _; 16],
+        example:        [0;         16],
+        full:           [b'f' as _; 16],
+        not_unicode:    [0;         16],
+    };
+    c.empty2[0] = 0;
+    c.not_unicode[0] = 0xDC00;
+    c.not_unicode[1] = 0xDC00;
+
+    assert_abi_compatible!(R, C);
+    #[repr(C)] struct R {
+        empty:          CStrBuf<u16, 16>,
+        empty2:         CStrBuf<u16, 16>,
+        empty3:         CStrBuf<u16, 16>,
+        example:        CStrBuf<u16, 16>,
+        full:           CStrBuf<u16, 16>,
+        not_unicode:    CStrBuf<u16, 16>,
+    }
+    let r : &mut R = unsafe { transmute(&mut c) };
+    r.example.try_set(u!(b"example")).unwrap();
+    r.empty3 = Default::default(); // !!! MUTATION !!!
+
+    assert_eq!(r.empty          .is_empty(), true);
+    assert_eq!(r.empty2         .is_empty(), true);
+    assert_eq!(r.empty3         .is_empty(), true);
+    assert_eq!(r.example        .is_empty(), false);
+    assert_eq!(r.full           .is_empty(), false);
+    assert_eq!(r.not_unicode    .is_empty(), false);
+
+    assert_eq!(r.empty          .buffer(), u!(b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"));
+    assert_eq!(r.empty2         .buffer(), u!(b"\0fffffffffffffff"));
+    assert_eq!(r.empty3         .buffer(), u!(b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"));
+    assert_eq!(r.example        .buffer(), u!(b"example\0\0\0\0\0\0\0\0\0"));
+    assert_eq!(r.full           .buffer(), u!(b"ffffffffffffffff"));
+    assert_eq!(r.not_unicode    .buffer(), [0xDC00, 0xDC00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+    assert_eq!(r.empty          .to_units(), u!(b""));
+    assert_eq!(r.empty2         .to_units(), u!(b""));
+    assert_eq!(r.empty3         .to_units(), u!(b""));
+    assert_eq!(r.example        .to_units(), u!(b"example"));
+    assert_eq!(r.full           .to_units(), u!(b"ffffffffffffffff"));
+    assert_eq!(r.not_unicode    .to_units(), [0xDC00, 0xDC00]);
+
+    assert_eq!(r.empty          .to_units_with_nul(), Ok(u!(b"\0")));
+    assert_eq!(r.empty2         .to_units_with_nul(), Ok(u!(b"\0")));
+    assert_eq!(r.empty3         .to_units_with_nul(), Ok(u!(b"\0")));
+    assert_eq!(r.example        .to_units_with_nul(), Ok(u!(b"example\0")));
+    assert_eq!(r.full           .to_units_with_nul(), Err(NotNulTerminatedError(())));
+    assert_eq!(r.not_unicode    .to_units_with_nul(), Ok(&[0xDC00, 0xDC00, 0][..]));
+
+    #[cfg(feature = "widestring-0-4")] {
+        assert_eq!(r.empty          .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(u!(b"\0")).unwrap()));
+        assert_eq!(r.empty2         .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(u!(b"\0")).unwrap()));
+        assert_eq!(r.empty3         .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(u!(b"\0")).unwrap()));
+        assert_eq!(r.example        .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(u!(b"example\0")).unwrap()));
+        assert_eq!(r.full           .to_u16cstr(), Err(NotNulTerminatedError(())));
+        assert_eq!(r.not_unicode    .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(&[0xDC00, 0xDC00, 0]).unwrap()));
+
+        assert_eq!(r.empty          .to_u16str(), U16Str::from_slice(u!(b"")));
+        assert_eq!(r.empty2         .to_u16str(), U16Str::from_slice(u!(b"")));
+        assert_eq!(r.empty3         .to_u16str(), U16Str::from_slice(u!(b"")));
+        assert_eq!(r.example        .to_u16str(), U16Str::from_slice(u!(b"example")));
+        assert_eq!(r.full           .to_u16str(), U16Str::from_slice(u!(b"ffffffffffffffff")));
+        assert_eq!(r.not_unicode    .to_u16str(), U16Str::from_slice(&[0xDC00, 0xDC00]));
+    }
+
+    assert_eq!(r.empty          .to_string_lossy(), "");
+    assert_eq!(r.empty2         .to_string_lossy(), "");
+    assert_eq!(r.empty3         .to_string_lossy(), "");
+    assert_eq!(r.example        .to_string_lossy(), "example");
+    assert_eq!(r.full           .to_string_lossy(), "ffffffffffffffff");
+    assert_eq!(r.not_unicode    .to_string_lossy(), "\u{FFFD}\u{FFFD}");
+
+    assert_eq!(r.empty          .validate().is_err(), false);
+    assert_eq!(r.empty2         .validate().is_err(), false);
+    assert_eq!(r.empty3         .validate().is_err(), false);
+    assert_eq!(r.example        .validate().is_err(), false);
+    assert_eq!(r.full           .validate().is_err(), true);
+    assert_eq!(r.not_unicode    .validate().is_err(), false);
+
+    assert_eq!(format!("{:?}", r.empty          ), "\"\"" );
+    assert_eq!(format!("{:?}", r.empty2         ), "\"\"" );
+    assert_eq!(format!("{:?}", r.empty3         ), "\"\"" );
+    assert_eq!(format!("{:?}", r.example        ), "\"example\"" );
+    assert_eq!(format!("{:?}", r.full           ), "\"ffffffffffffffff\"" );
+    assert_eq!(format!("{:?}", r.not_unicode    ), "\"\\udc00\\udc00\"" );
+
+    unsafe {
+        assert_eq!(r.empty          .buffer_mut(), u!(b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"));
+        assert_eq!(r.empty2         .buffer_mut(), u!(b"\0fffffffffffffff"));
+        assert_eq!(r.empty3         .buffer_mut(), u!(b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"));
+        assert_eq!(r.example        .buffer_mut(), u!(b"example\0\0\0\0\0\0\0\0\0"));
+        assert_eq!(r.full           .buffer_mut(), u!(b"ffffffffffffffff"));
+        assert_eq!(r.not_unicode    .buffer_mut(), &[0xDC00, 0xDC00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0][..]);
+    }
+
+    // !!! MUTATION !!!
+    assert_eq!(r.empty          .nul_truncate().to_units(), u!(b""));
+    assert_eq!(r.empty2         .nul_truncate().to_units(), u!(b""));
+    assert_eq!(r.empty3         .nul_truncate().to_units(), u!(b""));
+    assert_eq!(r.example        .nul_truncate().to_units(), u!(b"example"));
+    assert_eq!(r.full           .nul_truncate().to_units(), u!(b"fffffffffffffff"));
+    assert_eq!(r.not_unicode    .nul_truncate().to_units(), &[0xDC00, 0xDC00][..]);
+    // !!! MUTATED !!!
+
+    assert_eq!(r.empty          .buffer(), u!(b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"));
+    assert_eq!(r.empty2         .buffer(), u!(b"\0ffffffffffffff\0")); // modified with terminal \0
+    assert_eq!(r.empty3         .buffer(), u!(b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"));
+    assert_eq!(r.example        .buffer(), u!(b"example\0\0\0\0\0\0\0\0\0"));
+    assert_eq!(r.full           .buffer(), u!(b"fffffffffffffff\0")); // modified with terminal \0
+    assert_eq!(r.not_unicode    .buffer(), &[0xDC00, 0xDC00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0][..]);
 
     assert_eq!(r.empty          .validate().is_err(), false);
     assert_eq!(r.empty2         .validate().is_err(), false);
