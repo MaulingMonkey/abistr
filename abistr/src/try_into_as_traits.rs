@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{c_char, *};
 
 #[cfg(feature = "std")] use std::ffi::*;
 
