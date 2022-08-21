@@ -581,7 +581,7 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     assert_eq!(format!("{:?}", r2.not_unicode   ), "Some(\"\\udc00\\udc00\")" );
 }
 
-mod cstrptr_lifetime_tests {
+#[allow(dead_code)] mod cstrptr_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
     /// fn f(_: CStrPtr) {}
@@ -595,7 +595,7 @@ mod cstrptr_lifetime_tests {
     /// let local = *b"example\0";
     /// f(CStrPtr::from_bytes_with_nul(&local).unwrap());
     /// ```
-    #[allow(dead_code)] struct FromBytesWithNul;
+    struct FromBytesWithNul;
 
     /// ```no_run
     /// use abistr::*;
@@ -610,7 +610,7 @@ mod cstrptr_lifetime_tests {
     /// let local = *b"example\0";
     /// f(unsafe { CStrPtr::from_bytes_with_nul_unchecked(&local) });
     /// ```
-    #[allow(dead_code)] struct FromBytesWithNulUnchecked;
+    struct FromBytesWithNulUnchecked;
 
     /// ```no_run
     /// use abistr::*;
@@ -621,7 +621,7 @@ mod cstrptr_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrPtr) -> &'static [u8] { ptr.to_bytes() }
     /// ```
-    #[allow(dead_code)] struct ToBytesLifetime;
+    struct ToBytesLifetime;
 
     /// ```no_run
     /// use abistr::*;
@@ -632,7 +632,7 @@ mod cstrptr_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrPtr) -> &'static [u8] { ptr.to_bytes_with_nul() }
     /// ```
-    #[allow(dead_code)] struct ToBytesWithNulLifetime;
+    struct ToBytesWithNulLifetime;
 
     /// ```no_run
     /// use abistr::*;
@@ -643,7 +643,7 @@ mod cstrptr_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrPtr) -> &'static std::ffi::CStr { ptr.to_cstr() }
     /// ```
-    #[allow(dead_code)] struct ToCStr;
+    struct ToCStr;
 
     /// ```no_run
     /// use abistr::*;
@@ -654,7 +654,7 @@ mod cstrptr_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrPtr) -> &'static str { ptr.to_str().unwrap() }
     /// ```
-    #[allow(dead_code)] struct ToStr;
+    struct ToStr;
 
     /// ```no_run
     /// use abistr::*;
@@ -665,10 +665,99 @@ mod cstrptr_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrPtr) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
     /// ```
-    #[allow(dead_code)] struct ToStringLossy;
+    struct ToStringLossy;
 }
 
-mod cstrnonnull_lifetime_tests {
+#[allow(dead_code)] mod cstrptr16_lifetime_tests {
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(_: CStrPtr<u16>) {}
+    /// let local = [b'e' as u16, b'x' as u16, 0];
+    /// f(CStrPtr::from_units_with_nul(&local).unwrap());
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(_: CStrPtr<'static, u16>) {}
+    /// let local = [b'e' as u16, b'x' as u16, 0];
+    /// f(CStrPtr::from_units_with_nul(&local).unwrap());
+    /// ```
+    struct FromUnitsWithNul;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(_: CStrPtr<u16>) {}
+    /// let local = [b'e' as u16, b'x' as u16, 0];
+    /// f(unsafe { CStrPtr::from_units_with_nul_unchecked(&local) });
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(_: CStrPtr<'static, u16>) {}
+    /// let local = [b'e' as u16, b'x' as u16, 0];
+    /// f(unsafe { CStrPtr::from_units_with_nul_unchecked(&local) });
+    /// ```
+    struct FromUnitsWithNulUnchecked;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static [u16] { ptr.to_units() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<u16>) -> &'static [u16] { ptr.to_units() }
+    /// ```
+    struct ToUnitsLifetime;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static [u16] { ptr.to_units_with_nul() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<u16>) -> &'static [u16] { ptr.to_units_with_nul() }
+    /// ```
+    struct ToUnitsWithNulLifetime;
+
+    #[cfg(feature = "widestring-0-4")]
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static widestring_0_4::U16CStr { ptr.to_u16cstr() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<u16>) -> &'static widestring_0_4::U16CStr { ptr.to_u16cstr() }
+    /// ```
+    struct ToCStr;
+
+    #[cfg(feature = "widestring-0-4")]
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static widestring_0_4::U16Str { ptr.to_u16str() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<u16>) -> &'static widestring_0_4::U16Str { ptr.to_u16str() }
+    /// ```
+    struct ToStr;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<'static, u16>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrPtr<u16>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// ```
+    struct ToStringLossy;
+}
+
+#[allow(dead_code)] mod cstrnonnull_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
     /// fn f(_: CStrNonNull) {}
@@ -682,7 +771,7 @@ mod cstrnonnull_lifetime_tests {
     /// let local = *b"example\0";
     /// f(CStrNonNull::from_bytes_with_nul(&local).unwrap());
     /// ```
-    #[allow(dead_code)] struct FromBytesWithNul;
+    struct FromBytesWithNul;
 
     /// ```no_run
     /// use abistr::*;
@@ -697,7 +786,7 @@ mod cstrnonnull_lifetime_tests {
     /// let local = *b"example\0";
     /// f(unsafe { CStrNonNull::from_bytes_with_nul_unchecked(&local) });
     /// ```
-    #[allow(dead_code)] struct FromBytesWithNulUnchecked;
+    struct FromBytesWithNulUnchecked;
 
     /// ```no_run
     /// use abistr::*;
@@ -708,7 +797,7 @@ mod cstrnonnull_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrNonNull) -> &'static [u8] { ptr.to_bytes() }
     /// ```
-    #[allow(dead_code)] struct ToBytesLifetime;
+    struct ToBytesLifetime;
 
     /// ```no_run
     /// use abistr::*;
@@ -719,7 +808,7 @@ mod cstrnonnull_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrNonNull) -> &'static [u8] { ptr.to_bytes_with_nul() }
     /// ```
-    #[allow(dead_code)] struct ToBytesWithNulLifetime;
+    struct ToBytesWithNulLifetime;
 
     /// ```no_run
     /// use abistr::*;
@@ -730,7 +819,7 @@ mod cstrnonnull_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrNonNull) -> &'static std::ffi::CStr { ptr.to_cstr() }
     /// ```
-    #[allow(dead_code)] struct ToCStr;
+    struct ToCStr;
 
     /// ```no_run
     /// use abistr::*;
@@ -741,7 +830,7 @@ mod cstrnonnull_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrNonNull) -> &'static str { ptr.to_str().unwrap() }
     /// ```
-    #[allow(dead_code)] struct ToStr;
+    struct ToStr;
 
     /// ```no_run
     /// use abistr::*;
@@ -752,5 +841,99 @@ mod cstrnonnull_lifetime_tests {
     /// use abistr::*;
     /// fn f(ptr: CStrNonNull) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
     /// ```
-    #[allow(dead_code)] struct ToStringLossy;
+    struct ToStringLossy;
+}
+
+#[allow(dead_code)] mod cstrnonnull16_lifetime_tests {
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(_: CStrNonNull<u16>) {}
+    /// let local = [b'e' as u16, b'x' as u16, 0];
+    /// f(CStrNonNull::from_units_with_nul(&local).unwrap());
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(_: CStrNonNull<'static, u16>) {}
+    /// let local = [b'e' as u16, b'x' as u16, 0];
+    /// f(CStrNonNull::from_units_with_nul(&local).unwrap());
+    /// ```
+    struct FromBytesWithNul;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(_: CStrNonNull<u16>) {}
+    /// let local = [b'e' as u16, b'x' as u16, 0];
+    /// f(unsafe { CStrNonNull::from_units_with_nul_unchecked(&local) });
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(_: CStrNonNull<'static, u16>) {}
+    /// let local = [b'e' as u16, b'x' as u16, 0];
+    /// f(unsafe { CStrNonNull::from_units_with_nul_unchecked(&local) });
+    /// ```
+    struct FromBytesWithNulUnchecked;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static [u16] { ptr.to_units() }
+    /// fn g(ptr: CStrNonNull<         u16>) -> &        [u16] { ptr.to_units() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<u16>) -> &'static [u16] { ptr.to_units() }
+    /// ```
+    struct ToBytesLifetime;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static [u16] { ptr.to_units_with_nul() }
+    /// fn g(ptr: CStrNonNull<         u16>) -> &        [u16] { ptr.to_units_with_nul() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<u16>) -> &'static [u16] { ptr.to_units_with_nul() }
+    /// ```
+    struct ToBytesWithNulLifetime;
+
+    #[cfg(feature = "widestring-0-4")]
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static widestring_0_4::U16CStr { ptr.to_u16cstr() }
+    /// fn g(ptr: CStrNonNull<         u16>) -> &        widestring_0_4::U16CStr { ptr.to_u16cstr() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<u16>) -> &'static widestring_0_4::U16CStr { ptr.to_u16cstr() }
+    /// ```
+    struct ToCStr;
+
+    #[cfg(feature = "widestring-0-4")]
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static widestring_0_4::U16Str { ptr.to_u16str() }
+    /// fn g(ptr: CStrNonNull<         u16>) -> &        widestring_0_4::U16Str { ptr.to_u16str() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<u16>) -> &'static widestring_0_4::U16Str { ptr.to_u16str() }
+    /// ```
+    struct ToStr;
+
+    /// ```no_run
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<'static, u16>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// fn g(ptr: CStrNonNull<         u16>) -> std::borrow::Cow<         str> { ptr.to_string_lossy() }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use abistr::*;
+    /// fn f(ptr: CStrNonNull<u16>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// ```
+    struct ToStringLossy;
 }
