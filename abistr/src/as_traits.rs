@@ -30,11 +30,11 @@ unsafe impl AsCStr<u8> for &'_ CStr { fn as_cstr(&self) -> *const u8 { self.as_p
 unsafe impl AsCStr<i8> for CString { fn as_cstr(&self) -> *const i8 { self.as_ptr().cast() } }
 unsafe impl AsCStr<u8> for CString { fn as_cstr(&self) -> *const u8 { self.as_ptr().cast() } }
 
-#[cfg(feature = "widestring-0-4")] unsafe impl AsCStr<u16> for &'_ widestring_0_4::U16CStr { fn as_cstr(&self) -> *const u16 { self.as_ptr() } }
-#[cfg(feature = "widestring-0-4")] unsafe impl AsCStr<u32> for &'_ widestring_0_4::U32CStr { fn as_cstr(&self) -> *const u32 { self.as_ptr() } }
+#[cfg(feature = "widestring")] unsafe impl AsCStr<u16> for &'_ widestring::U16CStr { fn as_cstr(&self) -> *const u16 { self.as_ptr() } }
+#[cfg(feature = "widestring")] unsafe impl AsCStr<u32> for &'_ widestring::U32CStr { fn as_cstr(&self) -> *const u32 { self.as_ptr() } }
 
-#[cfg(feature = "widestring-0-4")] unsafe impl AsCStr<u16> for widestring_0_4::U16CString { fn as_cstr(&self) -> *const u16 { self.as_ptr() } }
-#[cfg(feature = "widestring-0-4")] unsafe impl AsCStr<u32> for widestring_0_4::U32CString { fn as_cstr(&self) -> *const u32 { self.as_ptr() } }
+#[cfg(feature = "widestring")] unsafe impl AsCStr<u16> for widestring::U16CString { fn as_cstr(&self) -> *const u16 { self.as_ptr() } }
+#[cfg(feature = "widestring")] unsafe impl AsCStr<u32> for widestring::U32CString { fn as_cstr(&self) -> *const u32 { self.as_ptr() } }
 
 
 

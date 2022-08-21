@@ -1,6 +1,6 @@
 use crate::*;
 
-#[cfg(feature = "widestring-0-4")] use widestring_0_4::*;
+#[cfg(feature = "widestring")] use widestring::*;
 
 use std::borrow::Cow;
 use std::fmt::{self, Debug, Formatter};
@@ -192,12 +192,12 @@ impl<const N: usize> CStrBuf<u8, N> {
     pub fn to_str(&self) -> Result<&str, Utf8Error> { from_utf8(self.to_bytes()) }
 }
 
-#[cfg(feature = "widestring-0-4")] impl<const N: usize> CStrBuf<u16, N> {
+#[cfg(feature = "widestring")] impl<const N: usize> CStrBuf<u16, N> {
     /// Attempt to convert the buffer to a [`U16CStr`], returning <code>[Err]\([NotNulTerminatedError]\)</code> instead if the underlying buffer isn't `\0`-terminated.
     /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
     ///
     /// `O(n)` to locate the terminal `\0`.
-    pub fn to_u16cstr(&self) -> Result<&U16CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U16CStr::from_slice_with_nul_unchecked(units) }) }
+    pub fn to_u16cstr(&self) -> Result<&U16CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U16CStr::from_slice_unchecked(units) }) }
 
     /// Convert the buffer to a [`U16Str`].
     ///
@@ -205,12 +205,12 @@ impl<const N: usize> CStrBuf<u8, N> {
     pub fn to_u16str(&self) -> &U16Str { U16Str::from_slice(self.to_units()) }
 }
 
-#[cfg(feature = "widestring-0-4")] impl<const N: usize> CStrBuf<u32, N> {
+#[cfg(feature = "widestring")] impl<const N: usize> CStrBuf<u32, N> {
     /// Attempt to convert the buffer to a [`U32CStr`], returning <code>[Err]\([NotNulTerminatedError]\)</code> instead if the underlying buffer isn't `\0`-terminated.
     /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
     ///
     /// `O(n)` to locate the terminal `\0`.
-    pub fn to_u32cstr(&self) -> Result<&U32CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U32CStr::from_slice_with_nul_unchecked(units) }) }
+    pub fn to_u32cstr(&self) -> Result<&U32CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U32CStr::from_slice_unchecked(units) }) }
 
     /// Convert the buffer to a [`U32Str`].
     ///
@@ -597,13 +597,13 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.full           .to_units_with_nul(), Err(NotNulTerminatedError(())));
     assert_eq!(r.not_unicode    .to_units_with_nul(), Ok(&[0xDC00, 0xDC00, 0][..]));
 
-    #[cfg(feature = "widestring-0-4")] {
-        assert_eq!(r.empty          .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(u!(b"\0")).unwrap()));
-        assert_eq!(r.empty2         .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(u!(b"\0")).unwrap()));
-        assert_eq!(r.empty3         .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(u!(b"\0")).unwrap()));
-        assert_eq!(r.example        .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(u!(b"example\0")).unwrap()));
+    #[cfg(feature = "widestring")] {
+        assert_eq!(r.empty          .to_u16cstr(), Ok(U16CStr::from_slice(u!(b"\0")).unwrap()));
+        assert_eq!(r.empty2         .to_u16cstr(), Ok(U16CStr::from_slice(u!(b"\0")).unwrap()));
+        assert_eq!(r.empty3         .to_u16cstr(), Ok(U16CStr::from_slice(u!(b"\0")).unwrap()));
+        assert_eq!(r.example        .to_u16cstr(), Ok(U16CStr::from_slice(u!(b"example\0")).unwrap()));
         assert_eq!(r.full           .to_u16cstr(), Err(NotNulTerminatedError(())));
-        assert_eq!(r.not_unicode    .to_u16cstr(), Ok(U16CStr::from_slice_with_nul(&[0xDC00, 0xDC00, 0]).unwrap()));
+        assert_eq!(r.not_unicode    .to_u16cstr(), Ok(U16CStr::from_slice(&[0xDC00, 0xDC00, 0]).unwrap()));
 
         assert_eq!(r.empty          .to_u16str(), U16Str::from_slice(u!(b"")));
         assert_eq!(r.empty2         .to_u16str(), U16Str::from_slice(u!(b"")));

@@ -1,6 +1,6 @@
 use crate::*;
 
-#[cfg(feature = "widestring-0-4")] use widestring_0_4::*;
+#[cfg(feature = "widestring")] use widestring::*;
 
 use std::borrow::Cow;
 use std::ffi::*;
@@ -108,7 +108,7 @@ impl<'s> CStrPtr<'s, u8> {
     pub fn to_str(&self) -> Result<&'s str, Utf8Error> { self.to_cstr().to_str() }
 }
 
-#[cfg(feature = "widestring-0-4")] impl<'s> CStrPtr<'s, u16> {
+#[cfg(feature = "widestring")] impl<'s> CStrPtr<'s, u16> {
     /// Convert `self` to a [`U16CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
@@ -116,7 +116,7 @@ impl<'s> CStrPtr<'s, u8> {
         if self.ptr.is_null() {
             Default::default()
         } else {
-            unsafe { U16CStr::from_ptr_with_nul(self.ptr, strlen(self.ptr)) }
+            unsafe { U16CStr::from_ptr_str(self.ptr) }
         }
     }
 
@@ -126,7 +126,7 @@ impl<'s> CStrPtr<'s, u8> {
     pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
 }
 
-#[cfg(feature = "widestring-0-4")] impl<'s> CStrPtr<'s, u32> {
+#[cfg(feature = "widestring")] impl<'s> CStrPtr<'s, u32> {
     /// Convert `self` to a [`U32CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
@@ -134,7 +134,7 @@ impl<'s> CStrPtr<'s, u8> {
         if self.ptr.is_null() {
             Default::default()
         } else {
-            unsafe { U32CStr::from_ptr_with_nul(self.ptr, strlen(self.ptr)) }
+            unsafe { U32CStr::from_ptr_str(self.ptr) }
         }
     }
 
@@ -253,11 +253,11 @@ impl<'s> CStrNonNull<'s, u8> {
     pub fn to_str(&self) -> Result<&'s str, Utf8Error> { self.to_cstr().to_str() }
 }
 
-#[cfg(feature = "widestring-0-4")] impl<'s> CStrNonNull<'s, u16> {
+#[cfg(feature = "widestring")] impl<'s> CStrNonNull<'s, u16> {
     /// Convert `self` to a [`U16CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_u16cstr(&self) -> &'s U16CStr { unsafe { U16CStr::from_ptr_with_nul(self.as_ptr(), strlen(self.as_ptr())) } }
+    pub fn to_u16cstr(&self) -> &'s U16CStr { unsafe { U16CStr::from_ptr_str(self.as_ptr()) } }
 
     /// Convert `self` to a [`U16Str`].
     ///
@@ -265,11 +265,11 @@ impl<'s> CStrNonNull<'s, u8> {
     pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
 }
 
-#[cfg(feature = "widestring-0-4")] impl<'s> CStrNonNull<'s, u32> {
+#[cfg(feature = "widestring")] impl<'s> CStrNonNull<'s, u32> {
     /// Convert `self` to a [`U32CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_u32cstr(&self) -> &'s U32CStr { unsafe { U32CStr::from_ptr_with_nul(self.as_ptr(), strlen(self.as_ptr())) } }
+    pub fn to_u32cstr(&self) -> &'s U32CStr { unsafe { U32CStr::from_ptr_str(self.as_ptr()) } }
 
     /// Convert `self` to a [`U32Str`].
     ///
@@ -537,17 +537,17 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     assert_eq!(r2.example       .as_ref().map_or(&u_empty0[..], |s| s.to_units_with_nul()), &u_example0[..]);
     assert_eq!(r2.not_unicode   .as_ref().map_or(&u_empty0[..], |s| s.to_units_with_nul()), &u_not_unicode0[..]);
 
-    #[cfg(feature = "widestring-0-4")] {
-        assert_eq!(r1.null          .to_u16cstr(), U16CStr::from_slice_with_nul(u_empty0).unwrap());
-        assert_eq!(r1.empty         .to_u16cstr(), U16CStr::from_slice_with_nul(u_empty0).unwrap());
-        assert_eq!(r1.example       .to_u16cstr(), U16CStr::from_slice_with_nul(u_example0).unwrap());
-        assert_eq!(r1.not_unicode   .to_u16cstr(), U16CStr::from_slice_with_nul(u_not_unicode0).unwrap());
+    #[cfg(feature = "widestring")] {
+        assert_eq!(r1.null          .to_u16cstr(), U16CStr::from_slice(u_empty0).unwrap());
+        assert_eq!(r1.empty         .to_u16cstr(), U16CStr::from_slice(u_empty0).unwrap());
+        assert_eq!(r1.example       .to_u16cstr(), U16CStr::from_slice(u_example0).unwrap());
+        assert_eq!(r1.not_unicode   .to_u16cstr(), U16CStr::from_slice(u_not_unicode0).unwrap());
 
-        let empty = U16CStr::from_slice_with_nul(u_empty0).unwrap();
-        assert_eq!(r2.null          .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice_with_nul(u_empty0).unwrap());
-        assert_eq!(r2.empty         .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice_with_nul(u_empty0).unwrap());
-        assert_eq!(r2.example       .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice_with_nul(u_example0).unwrap());
-        assert_eq!(r2.not_unicode   .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice_with_nul(u_not_unicode0).unwrap());
+        let empty = U16CStr::from_slice(u_empty0).unwrap();
+        assert_eq!(r2.null          .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice(u_empty0).unwrap());
+        assert_eq!(r2.empty         .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice(u_empty0).unwrap());
+        assert_eq!(r2.example       .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice(u_example0).unwrap());
+        assert_eq!(r2.not_unicode   .as_ref().map_or(empty, |s| s.to_u16cstr()), U16CStr::from_slice(u_not_unicode0).unwrap());
 
         assert_eq!(r1.null          .to_u16str().as_slice(), u_empty);
         assert_eq!(r1.empty         .to_u16str().as_slice(), u_empty);
@@ -721,27 +721,27 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     /// ```
     struct ToUnitsWithNulLifetime;
 
-    #[cfg(feature = "widestring-0-4")]
+    #[cfg(feature = "widestring")]
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static widestring_0_4::U16CStr { ptr.to_u16cstr() }
+    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<u16>) -> &'static widestring_0_4::U16CStr { ptr.to_u16cstr() }
+    /// fn f(ptr: CStrPtr<u16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
     /// ```
     struct ToCStr;
 
-    #[cfg(feature = "widestring-0-4")]
+    #[cfg(feature = "widestring")]
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static widestring_0_4::U16Str { ptr.to_u16str() }
+    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static widestring::U16Str { ptr.to_u16str() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<u16>) -> &'static widestring_0_4::U16Str { ptr.to_u16str() }
+    /// fn f(ptr: CStrPtr<u16>) -> &'static widestring::U16Str { ptr.to_u16str() }
     /// ```
     struct ToStr;
 
@@ -899,29 +899,29 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     /// ```
     struct ToBytesWithNulLifetime;
 
-    #[cfg(feature = "widestring-0-4")]
+    #[cfg(feature = "widestring")]
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static widestring_0_4::U16CStr { ptr.to_u16cstr() }
-    /// fn g(ptr: CStrNonNull<         u16>) -> &        widestring_0_4::U16CStr { ptr.to_u16cstr() }
+    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
+    /// fn g(ptr: CStrNonNull<         u16>) -> &        widestring::U16CStr { ptr.to_u16cstr() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<u16>) -> &'static widestring_0_4::U16CStr { ptr.to_u16cstr() }
+    /// fn f(ptr: CStrNonNull<u16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
     /// ```
     struct ToCStr;
 
-    #[cfg(feature = "widestring-0-4")]
+    #[cfg(feature = "widestring")]
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static widestring_0_4::U16Str { ptr.to_u16str() }
-    /// fn g(ptr: CStrNonNull<         u16>) -> &        widestring_0_4::U16Str { ptr.to_u16str() }
+    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static widestring::U16Str { ptr.to_u16str() }
+    /// fn g(ptr: CStrNonNull<         u16>) -> &        widestring::U16Str { ptr.to_u16str() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<u16>) -> &'static widestring_0_4::U16Str { ptr.to_u16str() }
+    /// fn f(ptr: CStrNonNull<u16>) -> &'static widestring::U16Str { ptr.to_u16str() }
     /// ```
     struct ToStr;
 
