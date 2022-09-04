@@ -94,6 +94,8 @@ macro_rules! cstr32 {
     fn a(_: CStrNonNull<'static>) {}
     fn b(_: CStrNonNull) {}
 
+    const _C : CStrNonNull<'static> = cstr!("C");
+
     let empty       = cstr!("");
     let example     = cstr!("example");
     let not_unicode = cstr!(b"\xFF\xFF");
@@ -113,6 +115,8 @@ macro_rules! cstr32 {
 #[test] fn basics8() {
     fn a(_: CStrNonNull<'static>) {}
     fn b(_: CStrNonNull) {}
+
+    const _C : CStrNonNull<'static> = cstr8!("C");
 
     let empty       = cstr8!("");
     let example     = cstr8!("example");
@@ -134,6 +138,8 @@ macro_rules! cstr32 {
     fn a(_: CStrNonNull<'static, u16>) {}
     fn b(_: CStrNonNull<u16>) {}
 
+    const _C : CStrNonNull<'static, u16> = cstr16!("C");
+
     let empty       = cstr16!("");
     let example     = cstr16!("example");
 
@@ -149,6 +155,8 @@ macro_rules! cstr32 {
 #[test] fn basics32() {
     fn a(_: CStrNonNull<'static, u32>) {}
     fn b(_: CStrNonNull<u32>) {}
+
+    const _C : CStrNonNull<'static, u32> = cstr32!("C");
 
     let empty       = cstr32!("");
     let example     = cstr32!("example");

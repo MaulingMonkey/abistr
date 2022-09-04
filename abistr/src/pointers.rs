@@ -33,7 +33,7 @@ impl<'s, U: Unit> CStrPtr<'s, U> {
     /// *   `ptr` must point to a `\0`-terminated C string
     /// *   The underlying C-string cannot change for the duration of the lifetime `'s`.
     /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally extend.  Be careful!
-    pub unsafe fn from_ptr_unbounded(ptr: *const U::CChar) -> Self { Self { ptr, phantom: PhantomData } }
+    pub const unsafe fn from_ptr_unbounded(ptr: *const U::CChar) -> Self { Self { ptr, phantom: PhantomData } }
 
     /// Convert a raw slice of units into a [`CStrPtr`].  `units` should end with `\0`, but contain no interior `\0`s otherwise.
     pub fn from_units_with_nul(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> {
@@ -53,7 +53,7 @@ impl<'s, U: Unit> CStrPtr<'s, U> {
     }
 
     /// Treat `self` as a raw, possibly <code>[null]\(\)</code> C string.
-    pub fn as_ptr(&self) -> *const U::CChar { self.ptr.cast() }
+    pub const fn as_ptr(&self) -> *const U::CChar { self.ptr.cast() }
 
     /// Checks if `self` is <code>[null]\(\)</code>.
     pub fn is_null(&self) -> bool { self.ptr.is_null() }
@@ -185,7 +185,7 @@ impl<'s, U: Unit> CStrNonNull<'s, U> {
     /// *   `ptr` must point to a `\0`-terminated C string
     /// *   The underlying C-string cannot change for the duration of the lifetime `'s`.
     /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally extend.  Be careful!
-    pub unsafe fn from_ptr_unchecked_unbounded(ptr: *const U::CChar) -> Self { Self { ptr: NonNull::new_unchecked(ptr as *mut _), phantom: PhantomData } }
+    pub const unsafe fn from_ptr_unchecked_unbounded(ptr: *const U::CChar) -> Self { Self { ptr: NonNull::new_unchecked(ptr as *mut _), phantom: PhantomData } }
 
     /// Convert a raw slice of units into a [`CStrNonNull`].  `units` should end with `\0`, but contain no interior `\0`s otherwise.
     pub fn from_units_with_nul(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> {
@@ -206,15 +206,15 @@ impl<'s, U: Unit> CStrNonNull<'s, U> {
 
     /// Use [`from_units_with_nul_unchecked`](Self::from_units_with_nul_unchecked) or [`cstr!`] instead!
     #[doc(hidden)] // This fn only exists to allow the use of the totally safe `cstr!` macro in `#![forbid(unsafe_code)]` codebases.
-    pub fn zzz_unsound_do_not_call_this_directly_from_macro_units_with_nul(units: &'s [U]) -> Self {
-        unsafe { Self::from_units_with_nul_unchecked(units) }
+    pub const fn zzz_unsound_do_not_call_this_directly_from_macro_units_with_nul(units: &'s [U]) -> Self {
+        unsafe { Self::from_ptr_unchecked_unbounded(units.as_ptr() as *const _) }
     }
 
     /// Treat `self` as a raw C string.
-    pub fn as_ptr(&self) -> *const U::CChar { self.ptr.as_ptr().cast() }
+    pub const fn as_ptr(&self) -> *const U::CChar { self.ptr.as_ptr().cast() }
 
     /// Treat `self` as a [`NonNull`] C string.
-    pub fn as_non_null(&self) -> NonNull<U::CChar> { self.ptr }
+    pub const fn as_non_null(&self) -> NonNull<U::CChar> { self.ptr }
 
     /// Checks if `self` is empty (either <code>[null]\(\)</code>, or the first character is `\0`.)
     pub fn is_empty(&self) -> bool { U::NUL == unsafe { *self.ptr.as_ptr().cast() } }
