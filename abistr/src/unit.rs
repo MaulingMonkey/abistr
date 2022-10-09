@@ -24,7 +24,7 @@ pub(crate) mod private {
     use core::fmt::{self, Formatter};
 
     pub trait Unit : Default + Copy + PartialEq + 'static {
-        type CChar : 'static; // XXX: eliminate?
+        type CChar : Copy + 'static; // XXX: eliminate?
         const NUL : Self;
         const EMPTY : &'static [Self; 1];
         fn debug(buf: &[Self], fmt: &mut Formatter) -> fmt::Result;
