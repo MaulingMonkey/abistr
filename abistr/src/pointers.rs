@@ -22,6 +22,9 @@ pub struct CStrPtr<'s, U: Unit = u8> {
     phantom:    PhantomData<&'s U::CChar>,
 }
 
+unsafe impl<'s, U: Unit> Send for CStrPtr<'s, U> {}
+unsafe impl<'s, U: Unit> Sync for CStrPtr<'s, U> {}
+
 impl<'s, U: Unit> CStrPtr<'s, U> {
     /// A <code>[null]\(\)</code> [CStrPtr].
     pub const NULL : Self = Self { ptr: 0 as *const _, phantom: PhantomData };
@@ -176,6 +179,9 @@ pub struct CStrNonNull<'s, U: Unit = u8> {
     ptr:        NonNull<U::CChar>,
     phantom:    PhantomData<&'s U::CChar>,
 }
+
+unsafe impl<'s, U: Unit> Send for CStrNonNull<'s, U> {}
+unsafe impl<'s, U: Unit> Sync for CStrNonNull<'s, U> {}
 
 impl<'s, U: Unit> CStrNonNull<'s, U> {
     /// Convert a raw C-string into a [`CStrPtr`].  Note that the lifetime of the returned reference is unbounded!
