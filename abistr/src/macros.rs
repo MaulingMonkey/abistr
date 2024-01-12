@@ -16,6 +16,19 @@
     }};
 }
 
+macro_rules! for_each {
+    ( use {$(($path1:path, $path2:path, $path3:path)),+ $(,)?} as ($ident1:ident, $ident2:ident, $ident3:ident) $block:block ) => { $( const _ : () = { use $path1 as $ident1; use $path2 as $ident2; use $path3 as $ident3; $block }; )+ };
+    ( use {$(($path1:path, $path2:path, $path3:path)),+ $(,)?} as ($ident1:ident, $ident2:ident, $ident3:ident); $($tt:tt)* ) => { for_each! { use {$(($path1, $path2, $path3)),+} as ($ident1, $ident2, $ident3) { for_each! { $($tt)* } } } };
+
+    ( use {$(($path1:path, $path2:path)),+ $(,)?} as ($ident1:ident, $ident2:ident) $block:block ) => { $( const _ : () = { use $path1 as $ident1; use $path2 as $ident2; $block }; )+ };
+    ( use {$(($path1:path, $path2:path)),+ $(,)?} as ($ident1:ident, $ident2:ident); $($tt:tt)* ) => { for_each! { use {$(($path1, $path2)),+} as ($ident1, $ident2) { for_each! { $($tt)* } } } };
+
+    ( use {$($path:path),+ $(,)?} as $ident:ident $block:block ) => { $( const _ : () = { use $path as $ident; $block }; )+ };
+    ( use {$($path:path),+ $(,)?} as $ident:ident; $($tt:tt)* ) => { for_each! { use {$($path),+} as $ident { for_each! { $($tt)* } } } };
+
+    ( $($tt:tt)* ) => { $($tt)* };
+}
+
 /// Create a <code>&[CStrNonNull]<[Utf8] ></code> literal at compile time
 #[cfg(doc)]
 #[macro_export]

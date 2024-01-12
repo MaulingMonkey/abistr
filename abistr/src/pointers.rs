@@ -41,7 +41,7 @@ impl<'s, E: Encoding> CStrPtr<'s, E> {
     /// ### Returns
     /// *   <code>[Err]\(...\)</code> if `units` does not end with `\0`.
     /// *   <code>[Err]\(...\)</code> if `units` otherwise contains interior `\0`s.
-    /// *   <code>[Err]\(...\)</code> if `units` contains invalid sequences for [Encoding] `E` (e.g. invalid utf16 if <code>E = [encoding::Utf16]</code>.)
+    /// *   <code>[Err]\(...\)</code> if `units` contains invalid sequences for [Encoding] `E` (e.g. invalid UTF-16 if <code>E = [encoding::Utf16]</code>.)
     pub fn from_units_with_nul<U: Unit>(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<U> {
         let units = E::from_units(units).map_err(|_| FromUnitsWithNulError(()))?;
         let (nul, interior) = units.split_last().ok_or(FromUnitsWithNulError(()))?;
@@ -180,7 +180,7 @@ impl<'s, E: Encoding<Unit = u8>> From<CStrPtr<'s, E>> for &'s CStr {
     fn from(s: CStrPtr<'s, E>) -> Self { s.to_cstr() }
 }
 
-impl<'s> From<&'s CStr> for CStrPtr<'s, encoding::Unknown8> {
+impl<'s> From<&'s CStr> for CStrPtr<'s, Unknown8> {
     fn from(s: &'s CStr) -> Self { unsafe { CStrPtr::from_ptr_unchecked(s.as_ptr().cast()) } }
 }
 
@@ -217,7 +217,7 @@ impl<'s, E: Encoding> CStrNonNull<'s, E> {
     /// ### Returns
     /// *   <code>[Err]\(...\)</code> if `units` does not end with `\0`.
     /// *   <code>[Err]\(...\)</code> if `units` otherwise contains interior `\0`s.
-    /// *   <code>[Err]\(...\)</code> if `units` contains invalid sequences for [Encoding] `E` (e.g. invalid utf16 if <code>E = [encoding::Utf16]</code>.)
+    /// *   <code>[Err]\(...\)</code> if `units` contains invalid sequences for [Encoding] `E` (e.g. invalid UTF-16 if <code>E = [encoding::Utf16]</code>.)
     pub fn from_units_with_nul<U: Unit>(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<U> {
         let units = E::from_units(units).map_err(|_| FromUnitsWithNulError(()))?;
         let (nul, interior) = units.split_last().ok_or(FromUnitsWithNulError(()))?;
@@ -340,20 +340,109 @@ impl<'s, E: Encoding<Unit = u8>> From<CStrNonNull<'s, E>> for &'s CStr {
     fn from(s: CStrNonNull<'s, E>) -> Self { s.to_cstr() }
 }
 
-impl<'s> From<&'s CStr> for CStrNonNull<'s, encoding::Unknown8> {
+impl<'s> From<&'s CStr> for CStrNonNull<'s, Unknown8> {
     fn from(s: &'s CStr) -> Self { unsafe { CStrNonNull::from_ptr_unchecked(s.as_ptr().cast()) } }
+}
+
+for_each! {
+    use {CStrNonNull, CStrPtr} as CStrX;
+
+    impl<'s> CStrX<'s, Unknown8> {
+        /// Assume `self` is (more-or-less) UTF-8 encoded.
+        ///
+        /// ### Safety
+        /// 100% safe, although this might result in [Mojibake](https://en.wikipedia.org/wiki/Mojibake).
+        /// [Utf8ish] allows invalid [`char`]s and sequences.<br>
+        /// [`Self::assume_utf8`] is an `unsafe` alternative that does *not* allow for invalid sequences.
+        pub fn assume_utf8ish(self) -> CStrX<'s, Utf8ish> { unsafe { CStrX::from_ptr_unchecked(self.as_ptr().cast()) } }
+
+        /// Assume `self` is 100% valid UTF-8 (valid [`char`]s and sequences.)
+        ///
+        /// ### Safety
+        /// Invalid [`char`]s or sequences (surrogate code points, code points above 0x10FFFF, overlong encodings) are undefined behavior.<br>
+        /// [Mojibake](https://en.wikipedia.org/wiki/Mojibake) is also possible.<br>
+        /// Consider [`assume_utf8ish`](Self::assume_utf8ish) for a safe alternative.
+        pub unsafe fn assume_utf8(self) -> CStrX<'s, Utf8> { unsafe { CStrX::from_ptr_unchecked(self.as_ptr().cast()) } }
+    }
+
+    impl<'s> CStrX<'s, Utf8ish> {
+        /// Assume `self` is 100% valid UTF-8 (valid [`char`]s and sequences.)
+        ///
+        /// ### Safety
+        /// Invalid [`char`]s or sequences (surrogate code points, code points above 0x10FFFF, overlong encodings) are undefined behavior.<br>
+        /// [Mojibake](https://en.wikipedia.org/wiki/Mojibake) is also possible.<br>
+        pub unsafe fn assume_utf8(self) -> CStrX<'s, Utf8> { unsafe { CStrX::from_ptr_unchecked(self.as_ptr().cast()) } }
+    }
+
+
+
+    impl<'s> CStrX<'s, Unknown16> {
+        /// Assume `self` is (more-or-less) UTF-16 encoded.
+        ///
+        /// ### Safety
+        /// 100% safe, although this might result in [Mojibake](https://en.wikipedia.org/wiki/Mojibake).
+        /// [Utf16ish] allows invalid [`char`]s and sequences.<br>
+        /// [`Self::assume_utf16`] is an `unsafe` alternative that does *not* allow for invalid sequences.
+        pub fn assume_utf16ish(self) -> CStrX<'s, Utf16ish> { unsafe { CStrX::from_ptr_unchecked(self.as_ptr().cast()) } }
+
+        /// Assume `self` is 100% valid UTF-16 (valid [`char`]s and sequences.)
+        ///
+        /// ### Safety
+        /// Invalid [`char`]s or sequences (unpaired surrogate code points, values above 0x10FFFF) are undefined behavior.<br>
+        /// [Mojibake](https://en.wikipedia.org/wiki/Mojibake) is also possible.<br>
+        /// Consider [`assume_utf16ish`](Self::assume_utf16ish) for a safe alternative.
+        pub unsafe fn assume_utf16(self) -> CStrX<'s, Utf16> { unsafe { CStrX::from_ptr_unchecked(self.as_ptr().cast()) } }
+    }
+
+    impl<'s> CStrX<'s, Utf16ish> {
+        /// Assume `self` is 100% valid UTF-16 (valid [`char`]s and sequences.)
+        ///
+        /// ### Safety
+        /// Invalid [`char`]s or sequences (unpaired surrogate code points, values above 0x10FFFF) are undefined behavior.<br>
+        /// [Mojibake](https://en.wikipedia.org/wiki/Mojibake) is also possible.<br>
+        pub unsafe fn assume_utf16(self) -> CStrX<'s, Utf16> { unsafe { CStrX::from_ptr_unchecked(self.as_ptr().cast()) } }
+    }
+
+
+
+    impl<'s> CStrX<'s, Unknown32> {
+        /// Assume `self` is (more-or-less) UTF-32 encoded.
+        ///
+        /// ### Safety
+        /// 100% safe, although this might result in [Mojibake](https://en.wikipedia.org/wiki/Mojibake).
+        /// [Utf32ish] allows invalid [`char`]s.<br>
+        /// [`Self::assume_utf32`] is an `unsafe` alternative that does *not* allow for invalid sequences.
+        pub fn assume_utf32ish(self) -> CStrX<'s, Utf32ish> { unsafe { CStrX::from_ptr_unchecked(self.as_ptr().cast()) } }
+
+        /// Assume `self` is 100% valid UTF-32 (valid [`char`]s.)
+        ///
+        /// ### Safety
+        /// Invalid [`char`]s (surrogate code points, values above 0x10FFFF) are undefined behavior.
+        /// [Mojibake](https://en.wikipedia.org/wiki/Mojibake) is also possible.<br>
+        /// Consider [`assume_utf32ish`](Self::assume_utf32ish) for a safe alternative.
+        pub unsafe fn assume_utf32(self) -> CStrX<'s, Utf32> { unsafe { CStrX::from_ptr_unchecked(self.as_ptr().cast()) } }
+    }
+
+    impl<'s> CStrX<'s, Utf32ish> {
+        /// Assume `self` is 100% valid UTF-32 (valid [`char`]s.)
+        ///
+        /// ### Safety
+        /// Invalid [`char`]s (surrogate code points, values above 0x10FFFF) are undefined behavior.
+        /// [Mojibake](https://en.wikipedia.org/wiki/Mojibake) is also possible.<br>
+        pub unsafe fn assume_utf32(self) -> CStrX<'s, Utf32> { unsafe { CStrX::from_ptr_unchecked(self.as_ptr().cast()) } }
+    }
 }
 
 
 
 #[test] fn abi_layout() {
-    assert_abi_compatible!(CStrPtr<encoding::Unknown8>,               *const c_char);
-    assert_abi_compatible!(Option<CStrNonNull<encoding::Unknown8>>,   *const c_char);
-    assert_abi_compatible!(CStrNonNull<encoding::Unknown8>,           NonNull<c_char>);
+    assert_abi_compatible!(CStrPtr<Unknown8>,               *const c_char);
+    assert_abi_compatible!(Option<CStrNonNull<Unknown8>>,   *const c_char);
+    assert_abi_compatible!(CStrNonNull<Unknown8>,           NonNull<c_char>);
 
-    assert_abi_compatible!(CStrPtr<encoding::Unknown16>,              *const u16);
-    assert_abi_compatible!(Option<CStrNonNull<encoding::Unknown16>>,  *const u16);
-    assert_abi_compatible!(CStrNonNull<encoding::Unknown16>,          NonNull<u16>);
+    assert_abi_compatible!(CStrPtr<Unknown16>,              *const u16);
+    assert_abi_compatible!(Option<CStrNonNull<Unknown16>>,  *const u16);
+    assert_abi_compatible!(CStrNonNull<Unknown16>,          NonNull<u16>);
 }
 
 
