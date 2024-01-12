@@ -81,7 +81,7 @@
 #[macro_use] mod macros;
 
 mod as_traits;                          pub use as_traits::*;
-mod buffers;                            pub use buffers::*;
+//mod buffers;                            pub use buffers::*;
 mod errors;                             pub use errors::*;
 mod estring;                            pub use estring::*;
 pub mod encoding;                       pub use encoding::Encoding; use encoding::*;
