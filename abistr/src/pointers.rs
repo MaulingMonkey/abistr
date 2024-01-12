@@ -1,10 +1,8 @@
 use crate::*;
+use crate::unit::private::{Unit as _};
 
-#[cfg(feature = "widestring")] use widestring::*;
-
-#[cfg(feature = "std")] use std::borrow::Cow;
-#[cfg(feature = "std")] use std::ffi::*;
-
+#[cfg(test)] use core::ffi::c_char;
+use core::ffi::CStr;
 use core::fmt::{self, Debug, Formatter};
 use core::marker::PhantomData;
 use core::ptr::*;
@@ -12,223 +10,252 @@ use core::str::Utf8Error;
 
 
 
-/// <code>[CStrPtr]&lt;[Unit]&gt;</code> is ABI compatible with <code>*const [Unit]</code>.  <code>[null]\(\)</code> is treated as an empty string.
+/// <code>[CStrPtr]&lt;[Encoding]&gt;</code> is ABI compatible with <code>*const [Encoding]::[Unit](Encoding::Unit)</code>.  <code>[null]\(\)</code> is treated as an empty string.
 ///
 /// If you want to treat <code>[null]\(\)</code> as [`None`], use <code>[Option]<[CStrNonNull]></code> instead.
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct CStrPtr<'s, U: Unit = u8> {
-    ptr:        *const U::CChar,
-    phantom:    PhantomData<&'s U::CChar>,
+pub struct CStrPtr<'s, E: Encoding> {
+    ptr:        *const E::Unit,
+    phantom:    PhantomData<&'s [E::Unit]>,
 }
 
-unsafe impl<'s, U: Unit> Send for CStrPtr<'s, U> {}
-unsafe impl<'s, U: Unit> Sync for CStrPtr<'s, U> {}
+unsafe impl<'s, E: Encoding> Send for CStrPtr<'s, E> {}
+unsafe impl<'s, E: Encoding> Sync for CStrPtr<'s, E> {}
 
-impl<'s, U: Unit> CStrPtr<'s, U> {
+impl<'s, E: Encoding> CStrPtr<'s, E> {
     /// A <code>[null]\(\)</code> [CStrPtr].
-    pub const NULL : Self = Self { ptr: 0 as *const _, phantom: PhantomData };
+    pub const NULL : Self = Self { ptr: null(), phantom: PhantomData };
 
     /// Convert a raw C-string into a [`CStrPtr`].  Note that the lifetime of the returned reference is unbounded!
     ///
     /// ### Safety
-    /// *   `ptr` cannot be null
-    /// *   `ptr` must point to a `\0`-terminated C string
+    /// `ptr` may be null.  If it is not:
+    /// *   `ptr` must point to a `\0`-terminated, `E` [Encoding], C string.
     /// *   The underlying C-string cannot change for the duration of the lifetime `'s`.
-    /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally extend.  Be careful!
-    pub const unsafe fn from_ptr_unbounded(ptr: *const U::CChar) -> Self { Self { ptr, phantom: PhantomData } }
+    /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally dangle.  Be careful!
+    pub const unsafe fn from_ptr_unchecked(ptr: *const E::Unit) -> Self { Self { ptr, phantom: PhantomData } }
 
-    /// Convert a raw slice of units into a [`CStrPtr`].  `units` should end with `\0`, but contain no interior `\0`s otherwise.
-    pub fn from_units_with_nul(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> {
+    /// Convert a raw slice of units, presumably with [Encoding] `E`, into a [`CStrPtr`].
+    ///
+    /// ### Returns
+    /// *   <code>[Err]\(...\)</code> if `units` does not end with `\0`.
+    /// *   <code>[Err]\(...\)</code> if `units` otherwise contains interior `\0`s.
+    /// *   <code>[Err]\(...\)</code> if `units` contains invalid sequences for [Encoding] `E` (e.g. invalid utf16 if <code>E = [encoding::Utf16]</code>.)
+    pub fn from_units_with_nul<U: Unit>(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<U> {
+        let units = E::from_units(units).map_err(|_| FromUnitsWithNulError(()))?;
         let (nul, interior) = units.split_last().ok_or(FromUnitsWithNulError(()))?;
-        if *nul != U::NUL { return Err(FromUnitsWithNulError(())); }
-        if interior.contains(&U::NUL) { return Err(FromUnitsWithNulError(())); }
-        Ok(unsafe { Self::from_ptr_unbounded(units.as_ptr().cast()) })
+        if *nul != E::Unit::NUL { return Err(FromUnitsWithNulError(())); }
+        if interior.contains(&E::Unit::NUL) { return Err(FromUnitsWithNulError(())); }
+        Ok(unsafe { Self::from_ptr_unchecked(units.as_ptr()) })
     }
 
     /// Convert a raw slice of units to a [`CStrPtr`].  The resulting string will be terminated at the first `\0` in `units`.
     ///
     /// ### Safety
     /// *   `units` must contain at least one `\0`.
-    pub unsafe fn from_units_with_nul_unchecked(units: &'s [U]) -> Self {
-        debug_assert!(units.contains(&U::NUL), "Undefined Behavior: `units` contained no `\0`!");
-        Self::from_ptr_unbounded(units.as_ptr() as *const _)
+    /// *   `units` must have [Encoding] `E`.
+    pub unsafe fn from_units_with_nul_unchecked(units: &'s [E::Unit]) -> Self {
+        debug_assert!(units.ends_with(E::Unit::EMPTY) || units.contains(&E::Unit::NUL), "Undefined Behavior: `units` contained no `\0`!");
+        E::debug_check_valid(units);
+        unsafe { Self::from_ptr_unchecked(units.as_ptr()) }
     }
 
     /// Treat `self` as a raw, possibly <code>[null]\(\)</code> C string.
-    pub const fn as_ptr(&self) -> *const U::CChar { self.ptr.cast() }
+    pub const fn as_ptr(&self) -> *const E::Unit { self.ptr }
 
     /// Checks if `self` is <code>[null]\(\)</code>.
     pub fn is_null(&self) -> bool { self.ptr.is_null() }
 
     /// Checks if `self` is empty (either null, or the first character is `\0`.)
-    pub fn is_empty(&self) -> bool { self.ptr.is_null() || U::NUL == unsafe { *self.ptr.cast() } }
+    pub fn is_empty(&self) -> bool { self.ptr.is_null() || E::Unit::NUL == unsafe { *self.ptr } }
 
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, **excluding** the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_units(&self) -> &'s [U] {
+    pub fn to_units(&self) -> &'s [E::Unit] {
         if self.ptr.is_null() { return &[]; }
-        let start = self.ptr.cast();
+        let start = self.ptr;
         unsafe { core::slice::from_raw_parts(start, strlen(start)) }
     }
 
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, including the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_units_with_nul(&self) -> &'s [U] {
-        if self.ptr.is_null() { return U::EMPTY; }
-        let start = self.ptr.cast();
+    pub fn to_units_with_nul(&self) -> &'s [E::Unit] {
+        if self.ptr.is_null() { return E::Unit::EMPTY; }
+        let start = self.ptr;
         unsafe { core::slice::from_raw_parts(start, strlen(start) + 1) }
     }
 
-    /// Convert `self` to a <code>[Cow]\<[str]\></code>.
+    /// Convert `self` to a <code>[alloc::borrow::Cow]\<[str]\></code>.
     ///
-    /// `O(n)` to find the terminal `\0` and validate, and to convert UTF8ish data to UTF8 if necesssary.
-    #[cfg(feature = "std")]
-    pub fn to_string_lossy(&self) -> Cow<'s, str> { U::to_string_lossy(self.to_units()) }
+    /// `O(n)` to find the terminal `\0` and convert/validate.
+    #[cfg(feature = "alloc")] pub fn to_string_lossy(&self) -> alloc::borrow::Cow<'s, str> where E: ToChars { E::to_string_lossy(self.to_units()) }
 }
 
-impl<'s> CStrPtr<'s, u8> {
-    #[cfg(feature = "std")]
-    #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromBytesWithNulError> { CStr::from_bytes_with_nul(bytes).map(Self::from) }
-    #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { Self::from_units_with_nul_unchecked(bytes) }
+impl<'s, E: Encoding<Unit = u8>> CStrPtr<'s, E> {
+    #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<u8> { Self::from_units_with_nul(bytes) }
+    #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { unsafe { Self::from_units_with_nul_unchecked(bytes) } }
     #[doc(hidden)] pub fn to_bytes(&self) -> &'s [u8] { self.to_units() }
     #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_units_with_nul() }
 
-    /// Convert `self` to a [`std::ffi::CStr`].
+    /// Convert `self` to a [`core::ffi::CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
-    #[cfg(feature = "std")]
     pub fn to_cstr(&self) -> &'s CStr {
         if self.ptr.is_null() {
             unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") }
         } else {
-            unsafe { CStr::from_ptr(self.ptr) }
+            unsafe { CStr::from_ptr(self.ptr.cast()) }
         }
     }
+}
 
+impl<'s> CStrPtr<'s, Utf8ish> {
     /// Convert `self` to a <code>&[str]</code>.
     ///
-    /// `O(n)` to find the terminal `\0` and validate UTF8.
+    /// `O(n)` to find the terminal `\0` and validate UTF-8.
     pub fn to_str(&self) -> Result<&'s str, Utf8Error> { core::str::from_utf8(self.to_units()) }
 }
 
-#[cfg(feature = "widestring")] impl<'s> CStrPtr<'s, u16> {
-    /// Convert `self` to a [`U16CStr`].
+impl<'s> CStrPtr<'s, Utf8> {
+    /// Convert `self` to a <code>&[str]</code>.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_u16cstr(&self) -> &'s U16CStr {
-        if self.ptr.is_null() {
-            Default::default()
-        } else {
-            unsafe { U16CStr::from_ptr_str(self.ptr) }
+    pub fn to_str(&self) -> &'s str { unsafe { core::str::from_utf8_unchecked(self.to_units()) } }
+}
+
+#[cfg(feature = "widestring")] const _ : () = {
+    use widestring::*;
+
+    impl<'s, E: Encoding<Unit = u16>> CStrPtr<'s, E> {
+        /// Convert `self` to a [`U16CStr`].
+        ///
+        /// `O(n)` to find the terminal `\0`.
+        pub fn to_u16cstr(&self) -> &'s U16CStr {
+            if self.ptr.is_null() {
+                Default::default()
+            } else {
+                unsafe { U16CStr::from_ptr_str(self.ptr) }
+            }
         }
+
+        /// Convert `self` to a [`U16Str`].
+        ///
+        /// `O(n)` to find the terminal `\0`
+        pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
     }
 
-    /// Convert `self` to a [`U16Str`].
-    ///
-    /// `O(n)` to find the terminal `\0`
-    pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
-}
-
-#[cfg(feature = "widestring")] impl<'s> CStrPtr<'s, u32> {
-    /// Convert `self` to a [`U32CStr`].
-    ///
-    /// `O(n)` to find the terminal `\0`.
-    pub fn to_u32cstr(&self) -> &'s U32CStr {
-        if self.ptr.is_null() {
-            Default::default()
-        } else {
-            unsafe { U32CStr::from_ptr_str(self.ptr) }
+    impl<'s, E: Encoding<Unit = u32>> CStrPtr<'s, E> {
+        /// Convert `self` to a [`U32CStr`].
+        ///
+        /// `O(n)` to find the terminal `\0`.
+        pub fn to_u32cstr(&self) -> &'s U32CStr {
+            if self.ptr.is_null() {
+                Default::default()
+            } else {
+                unsafe { U32CStr::from_ptr_str(self.ptr) }
+            }
         }
+
+        /// Convert `self` to a [`U32Str`].
+        ///
+        /// `O(n)` to find the terminal `\0`
+        pub fn to_u32str(&self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
     }
 
-    /// Convert `self` to a [`U32Str`].
-    ///
-    /// `O(n)` to find the terminal `\0`
-    pub fn to_u32str(&self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
+    #[cfg(todo)] const _ : () = { /* ...conversions to Utf{16,32}Str, U{16,32}CStr ? */ };
+};
+
+impl<E: Encoding> Debug for CStrPtr<'_, E> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { E::debug_fmt(self.to_units(), f) }
 }
 
-impl<U: Unit> Debug for CStrPtr<'_, U> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result { U::debug(self.to_units(), f) }
+impl<E: Encoding> Default for CStrPtr<'_, E> {
+    fn default() -> Self { Self { ptr: E::Unit::EMPTY.as_ptr(), phantom: PhantomData } }
 }
 
-impl<U: Unit> Default for CStrPtr<'_, U> {
-    fn default() -> Self { Self { ptr: U::EMPTY.as_ptr().cast(), phantom: PhantomData } }
+impl<'s, E: Encoding<Unit = u8>> From<CStrPtr<'s, E>> for &'s CStr {
+    fn from(s: CStrPtr<'s, E>) -> Self { s.to_cstr() }
 }
 
-#[cfg(feature = "std")]
-impl<'s> From<CStrPtr<'s>> for &'s CStr {
-    fn from(s: CStrPtr<'s>) -> Self { s.to_cstr() }
-}
-
-#[cfg(feature = "std")]
-impl<'s> From<&'s CStr> for CStrPtr<'s> {
-    fn from(s: &'s CStr) -> Self { unsafe { CStrPtr::from_ptr_unbounded(s.as_ptr().cast()) } }
+impl<'s> From<&'s CStr> for CStrPtr<'s, encoding::Unknown8> {
+    fn from(s: &'s CStr) -> Self { unsafe { CStrPtr::from_ptr_unchecked(s.as_ptr().cast()) } }
 }
 
 
 
-/// <code>[Option]&lt;[CStrNonNull]&lt;[Unit]&gt;&gt;</code> is ABI compatible with <code>*const [Unit]</code>.
+/// <code>[Option]&lt;[CStrNonNull]&lt;[Encoding]&gt;&gt;</code> is ABI compatible with <code>*const [Encoding]::[Unit](Encoding::Unit)</code>.
 ///
 /// If you want to treat <code>[null]\(\)</code> as `""`, use [`CStrPtr`] instead.
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct CStrNonNull<'s, U: Unit = u8> {
-    ptr:        NonNull<U::CChar>,
-    phantom:    PhantomData<&'s U::CChar>,
+pub struct CStrNonNull<'s, E: Encoding> {
+    ptr:        NonNull<E::Unit>,
+    phantom:    PhantomData<&'s [E::Unit]>,
 }
 
-unsafe impl<'s, U: Unit> Send for CStrNonNull<'s, U> {}
-unsafe impl<'s, U: Unit> Sync for CStrNonNull<'s, U> {}
+unsafe impl<'s, E: Encoding> Send for CStrNonNull<'s, E> {}
+unsafe impl<'s, E: Encoding> Sync for CStrNonNull<'s, E> {}
 
-impl<'s, U: Unit> CStrNonNull<'s, U> {
+impl<'s, E: Encoding> From<       CStrNonNull<'s, E> > for CStrPtr<'s, E> { fn from(p:        CStrNonNull<'s, E> ) -> Self { unsafe { core::mem::transmute(p) } } }
+impl<'s, E: Encoding> From<Option<CStrNonNull<'s, E>>> for CStrPtr<'s, E> { fn from(p: Option<CStrNonNull<'s, E>>) -> Self { unsafe { core::mem::transmute(p) } } }
+
+impl<'s, E: Encoding> CStrNonNull<'s, E> {
     /// Convert a raw C-string into a [`CStrPtr`].  Note that the lifetime of the returned reference is unbounded!
     ///
     /// ### Safety
-    /// *   `ptr` cannot be null
-    /// *   `ptr` must point to a `\0`-terminated C string
+    /// *   `ptr` cannot be null.
+    /// *   `ptr` must point to a `\0`-terminated, `E` [Encoding], C string
     /// *   The underlying C-string cannot change for the duration of the lifetime `'s`.
-    /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally extend.  Be careful!
-    pub const unsafe fn from_ptr_unchecked_unbounded(ptr: *const U::CChar) -> Self { Self { ptr: NonNull::new_unchecked(ptr as *mut _), phantom: PhantomData } }
+    /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally dangle.  Be careful!
+    pub const unsafe fn from_ptr_unchecked(ptr: *const E::Unit) -> Self { Self { ptr: unsafe { NonNull::new_unchecked(ptr as *mut _) }, phantom: PhantomData } }
 
-    /// Convert a raw slice of units into a [`CStrNonNull`].  `units` should end with `\0`, but contain no interior `\0`s otherwise.
-    pub fn from_units_with_nul(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> {
+    /// Convert a raw slice of units, presumably with [Encoding] `E`, into a [`CStrNonNull`].
+    ///
+    /// ### Returns
+    /// *   <code>[Err]\(...\)</code> if `units` does not end with `\0`.
+    /// *   <code>[Err]\(...\)</code> if `units` otherwise contains interior `\0`s.
+    /// *   <code>[Err]\(...\)</code> if `units` contains invalid sequences for [Encoding] `E` (e.g. invalid utf16 if <code>E = [encoding::Utf16]</code>.)
+    pub fn from_units_with_nul<U: Unit>(units: &'s [U]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<U> {
+        let units = E::from_units(units).map_err(|_| FromUnitsWithNulError(()))?;
         let (nul, interior) = units.split_last().ok_or(FromUnitsWithNulError(()))?;
-        if *nul != U::NUL { return Err(FromUnitsWithNulError(())); }
-        if interior.contains(&U::NUL) { return Err(FromUnitsWithNulError(())); }
-        Ok(unsafe { Self::from_ptr_unchecked_unbounded(units.as_ptr().cast()) })
+        if *nul != E::Unit::NUL { return Err(FromUnitsWithNulError(())); }
+        if interior.contains(&E::Unit::NUL) { return Err(FromUnitsWithNulError(())); }
+        Ok(unsafe { Self::from_ptr_unchecked(units.as_ptr().cast()) })
     }
 
     /// Convert a raw slice of units to a [`CStrNonNull`].  The resulting string will be terminated at the first `\0` in `units`.
     ///
     /// ### Safety
     /// *   `units` must contain at least one `\0`.
-    pub unsafe fn from_units_with_nul_unchecked(units: &'s [U]) -> Self {
-        debug_assert!(units.contains(&U::NUL), "Undefined Behavior: `units` contained no `\0`!");
-        Self::from_ptr_unchecked_unbounded(units.as_ptr() as *const _)
+    /// *   `units` must have [Encoding] `E`.
+    pub unsafe fn from_units_with_nul_unchecked(units: &'s [E::Unit]) -> Self {
+        debug_assert!(units.ends_with(E::Unit::EMPTY) || units.contains(&E::Unit::NUL), "Undefined Behavior: `units` contained no `\0`!");
+        E::debug_check_valid(units);
+        unsafe { Self::from_ptr_unchecked(units.as_ptr()) }
     }
 
     /// Use [`from_units_with_nul_unchecked`](Self::from_units_with_nul_unchecked) or [`cstr!`] instead!
     #[doc(hidden)] // This fn only exists to allow the use of the totally safe `cstr!` macro in `#![forbid(unsafe_code)]` codebases.
-    pub const fn zzz_unsound_do_not_call_this_directly_from_macro_units_with_nul(units: &'s [U]) -> Self {
-        unsafe { Self::from_ptr_unchecked_unbounded(units.as_ptr() as *const _) }
+    pub const fn zzz_unsound_do_not_call_this_directly_from_macro_units_with_nul(units: &'s [E::Unit]) -> Self {
+        unsafe { Self::from_ptr_unchecked(units.as_ptr()) }
     }
 
     /// Treat `self` as a raw C string.
-    pub const fn as_ptr(&self) -> *const U::CChar { self.ptr.as_ptr().cast() }
+    pub const fn as_ptr(&self) -> *const E::Unit { self.ptr.as_ptr().cast() }
 
     /// Treat `self` as a [`NonNull`] C string.
-    pub const fn as_non_null(&self) -> NonNull<U::CChar> { self.ptr }
+    pub const fn as_non_null(&self) -> NonNull<E::Unit> { self.ptr }
 
     /// Checks if `self` is empty (either <code>[null]\(\)</code>, or the first character is `\0`.)
-    pub fn is_empty(&self) -> bool { U::NUL == unsafe { *self.ptr.as_ptr().cast() } }
+    pub fn is_empty(&self) -> bool { E::Unit::NUL == unsafe { *self.ptr.as_ptr().cast() } }
 
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, **excluding** the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_units(&self) -> &'s [U] {
+    pub fn to_units(&self) -> &'s [E::Unit] {
         let start = self.ptr.as_ptr().cast();
         unsafe { core::slice::from_raw_parts(start, strlen(start) + 0) }
     }
@@ -236,89 +263,97 @@ impl<'s, U: Unit> CStrNonNull<'s, U> {
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, including the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_units_with_nul(&self) -> &'s [U] {
+    pub fn to_units_with_nul(&self) -> &'s [E::Unit] {
         let start = self.ptr.as_ptr().cast();
         unsafe { core::slice::from_raw_parts(start, strlen(start) + 1) }
     }
 
-    /// Convert `self` to a <code>[Cow]\<[str]\></code>.
+    /// Convert `self` to a <code>[alloc::borrow::Cow]\<[str]\></code>.
     ///
-    /// `O(n)` to find the terminal `\0` and validate, and to convert UTF8ish data to UTF8 if necesssary.
-    #[cfg(feature = "std")]
-    pub fn to_string_lossy(&self) -> Cow<'s, str> { U::to_string_lossy(self.to_units()) }
+    /// `O(n)` to find the terminal `\0` and convert/validate.
+    #[cfg(feature = "alloc")] pub fn to_string_lossy(&self) -> alloc::borrow::Cow<'s, str> where E: ToChars { E::to_string_lossy(self.to_units()) }
 }
 
-impl<'s> CStrNonNull<'s, u8> {
-    #[cfg(feature = "std")]
-    #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromBytesWithNulError> { CStr::from_bytes_with_nul(bytes).map(Self::from) }
-    #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { Self::from_units_with_nul_unchecked(bytes) }
+impl<'s, E: Encoding<Unit = u8>> CStrNonNull<'s, E> {
+    #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<u8> { Self::from_units_with_nul(bytes) }
+    #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { unsafe { Self::from_units_with_nul_unchecked(bytes) } }
     #[doc(hidden)] pub fn to_bytes(&self) -> &'s [u8] { self.to_units() }
     #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_units_with_nul() }
 
-    /// Convert `self` to a [`std::ffi::CStr`].
+    /// Convert `self` to a [`core::ffi::CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
-    #[cfg(feature = "std")]
-    pub fn to_cstr(&self) -> &'s CStr { unsafe { CStr::from_ptr(self.as_ptr()) } }
+    pub fn to_cstr(&self) -> &'s CStr { unsafe { CStr::from_ptr(self.as_ptr().cast()) } }
+}
 
+impl<'s> CStrNonNull<'s, Utf8ish> {
     /// Convert `self` to a <code>&[str]</code>.
     ///
-    /// `O(n)` to find the terminal `\0` and validate UTF8.
+    /// `O(n)` to find the terminal `\0` and validate UTF-8.
     pub fn to_str(&self) -> Result<&'s str, Utf8Error> { core::str::from_utf8(self.to_units()) }
 }
 
-#[cfg(feature = "widestring")] impl<'s> CStrNonNull<'s, u16> {
-    /// Convert `self` to a [`U16CStr`].
+impl<'s> CStrNonNull<'s, Utf8> {
+    /// Convert `self` to a <code>&[str]</code>.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_u16cstr(&self) -> &'s U16CStr { unsafe { U16CStr::from_ptr_str(self.as_ptr()) } }
-
-    /// Convert `self` to a [`U16Str`].
-    ///
-    /// `O(n)` to find the terminal `\0`.
-    pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
+    pub fn to_str(&self) -> &'s str { unsafe { core::str::from_utf8_unchecked(self.to_units()) } }
 }
 
-#[cfg(feature = "widestring")] impl<'s> CStrNonNull<'s, u32> {
-    /// Convert `self` to a [`U32CStr`].
-    ///
-    /// `O(n)` to find the terminal `\0`.
-    pub fn to_u32cstr(&self) -> &'s U32CStr { unsafe { U32CStr::from_ptr_str(self.as_ptr()) } }
+#[cfg(feature = "widestring")] const _ : () = {
+    use widestring::*;
 
-    /// Convert `self` to a [`U32Str`].
-    ///
-    /// `O(n)` to find the terminal `\0`.
-    pub fn to_u32str(&self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
+    impl<'s, E: Encoding<Unit = u16>> CStrNonNull<'s, E> {
+        /// Convert `self` to a [`U16CStr`].
+        ///
+        /// `O(n)` to find the terminal `\0`.
+        pub fn to_u16cstr(&self) -> &'s U16CStr { unsafe { U16CStr::from_ptr_str(self.as_ptr()) } }
+
+        /// Convert `self` to a [`U16Str`].
+        ///
+        /// `O(n)` to find the terminal `\0`.
+        pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
+    }
+
+    impl<'s, E: Encoding<Unit = u32>> CStrNonNull<'s, E> {
+        /// Convert `self` to a [`U32CStr`].
+        ///
+        /// `O(n)` to find the terminal `\0`.
+        pub fn to_u32cstr(&self) -> &'s U32CStr { unsafe { U32CStr::from_ptr_str(self.as_ptr()) } }
+
+        /// Convert `self` to a [`U32Str`].
+        ///
+        /// `O(n)` to find the terminal `\0`.
+        pub fn to_u32str(&self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
+    }
+};
+
+impl<E: Encoding> Debug for CStrNonNull<'_, E> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { E::debug_fmt(self.to_units(), f) }
 }
 
-impl<U: Unit> Debug for CStrNonNull<'_, U> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result { U::debug(self.to_units(), f) }
+impl<E: Encoding> Default for CStrNonNull<'_, E> {
+    fn default() -> Self { Self { ptr: unsafe { NonNull::new_unchecked(E::Unit::EMPTY.as_ptr() as *mut _) }, phantom: PhantomData } }
 }
 
-impl<U: Unit> Default for CStrNonNull<'_, U> {
-    fn default() -> Self { Self { ptr: unsafe { NonNull::new_unchecked(U::EMPTY.as_ptr() as *mut _) }, phantom: PhantomData } }
+impl<'s, E: Encoding<Unit = u8>> From<CStrNonNull<'s, E>> for &'s CStr {
+    fn from(s: CStrNonNull<'s, E>) -> Self { s.to_cstr() }
 }
 
-#[cfg(feature = "std")]
-impl<'s> From<CStrNonNull<'s>> for &'s CStr {
-    fn from(s: CStrNonNull<'s>) -> Self { s.to_cstr() }
-}
-
-#[cfg(feature = "std")]
-impl<'s> From<&'s CStr> for CStrNonNull<'s> {
-    fn from(s: &'s CStr) -> Self { unsafe { CStrNonNull::from_ptr_unchecked_unbounded(s.as_ptr().cast()) } }
+impl<'s> From<&'s CStr> for CStrNonNull<'s, encoding::Unknown8> {
+    fn from(s: &'s CStr) -> Self { unsafe { CStrNonNull::from_ptr_unchecked(s.as_ptr().cast()) } }
 }
 
 
 
 #[test] fn abi_layout() {
-    assert_abi_compatible!(CStrPtr,             *const c_char);
-    assert_abi_compatible!(Option<CStrNonNull>, *const c_char);
-    assert_abi_compatible!(CStrNonNull,         NonNull<c_char>);
+    assert_abi_compatible!(CStrPtr<encoding::Unknown8>,               *const c_char);
+    assert_abi_compatible!(Option<CStrNonNull<encoding::Unknown8>>,   *const c_char);
+    assert_abi_compatible!(CStrNonNull<encoding::Unknown8>,           NonNull<c_char>);
 
-    assert_abi_compatible!(CStrPtr<u16>,             *const u16);
-    assert_abi_compatible!(Option<CStrNonNull<u16>>, *const u16);
-    assert_abi_compatible!(CStrNonNull<u16>,         NonNull<u16>);
+    assert_abi_compatible!(CStrPtr<encoding::Unknown16>,              *const u16);
+    assert_abi_compatible!(Option<CStrNonNull<encoding::Unknown16>>,  *const u16);
+    assert_abi_compatible!(CStrNonNull<encoding::Unknown16>,          NonNull<u16>);
 }
 
 
@@ -342,19 +377,19 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     assert_abi_compatible!(R1, C);
     #[repr(C)] struct R1 {
-        null:           CStrPtr<'static>,
-        empty:          CStrPtr<'static>,
-        example:        CStrPtr<'static>,
-        not_unicode:    CStrPtr<'static>,
+        null:           CStrPtr<'static, Utf8ish>,
+        empty:          CStrPtr<'static, Utf8ish>,
+        example:        CStrPtr<'static, Utf8ish>,
+        not_unicode:    CStrPtr<'static, Utf8ish>,
     }
     let r1 : &R1 = unsafe { transmute(&c) };
 
     assert_abi_compatible!(R2, C);
     #[repr(C)] struct R2 {
-        null:           Option<CStrNonNull<'static>>,
-        empty:          Option<CStrNonNull<'static>>,
-        example:        Option<CStrNonNull<'static>>,
-        not_unicode:    Option<CStrNonNull<'static>>,
+        null:           Option<CStrNonNull<'static, Utf8ish>>,
+        empty:          Option<CStrNonNull<'static, Utf8ish>>,
+        example:        Option<CStrNonNull<'static, Utf8ish>>,
+        not_unicode:    Option<CStrNonNull<'static, Utf8ish>>,
     }
     let r2 : &R2 = unsafe { transmute(&c) };
 
@@ -435,6 +470,9 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     assert_eq!(r2.not_unicode   .as_ref().map_or(false,     |s| s.to_str().is_err()), true);
 
     #[cfg(feature = "std")] {
+        use std::borrow::Cow;
+        use std::format;
+
         assert_eq!(r1.null          .to_string_lossy(), "");
         assert_eq!(r1.empty         .to_string_lossy(), "");
         assert_eq!(r1.example       .to_string_lossy(), "example");
@@ -466,7 +504,7 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     let u_example  = &[b'e' as u16, b'x' as u16, b'a' as u16, b'm' as u16, b'p' as u16, b'l' as u16, b'e' as u16];
     let u_example0 = &[b'e' as u16, b'x' as u16, b'a' as u16, b'm' as u16, b'p' as u16, b'l' as u16, b'e' as u16, 0u16];
 
-    // UTF16 encodes surrogates with: `[high, low]`
+    // UTF-16 encodes surrogates with: `[high, low]`
     // FFFF is a valid non-surrogate code point
     // use the following invalid `[low, low]` sequence instead:
     let u_not_unicode  = &[0xDC00, 0xDC00];
@@ -488,19 +526,19 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     assert_abi_compatible!(R1, C);
     #[repr(C)] struct R1 {
-        null:           CStrPtr<'static, u16>,
-        empty:          CStrPtr<'static, u16>,
-        example:        CStrPtr<'static, u16>,
-        not_unicode:    CStrPtr<'static, u16>,
+        null:           CStrPtr<'static, Utf16ish>,
+        empty:          CStrPtr<'static, Utf16ish>,
+        example:        CStrPtr<'static, Utf16ish>,
+        not_unicode:    CStrPtr<'static, Utf16ish>,
     }
     let r1 : &R1 = unsafe { transmute(&c) };
 
     assert_abi_compatible!(R2, C);
     #[repr(C)] struct R2 {
-        null:           Option<CStrNonNull<'static, u16>>,
-        empty:          Option<CStrNonNull<'static, u16>>,
-        example:        Option<CStrNonNull<'static, u16>>,
-        not_unicode:    Option<CStrNonNull<'static, u16>>,
+        null:           Option<CStrNonNull<'static, Utf16ish>>,
+        empty:          Option<CStrNonNull<'static, Utf16ish>>,
+        example:        Option<CStrNonNull<'static, Utf16ish>>,
+        not_unicode:    Option<CStrNonNull<'static, Utf16ish>>,
     }
     let r2 : &R2 = unsafe { transmute(&c) };
 
@@ -558,6 +596,8 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     assert_eq!(r2.not_unicode   .as_ref().map_or(&u_empty0[..], |s| s.to_units_with_nul()), &u_not_unicode0[..]);
 
     #[cfg(feature = "widestring")] {
+        use widestring::*;
+
         assert_eq!(r1.null          .to_u16cstr(), U16CStr::from_slice(u_empty0).unwrap());
         assert_eq!(r1.empty         .to_u16cstr(), U16CStr::from_slice(u_empty0).unwrap());
         assert_eq!(r1.example       .to_u16cstr(), U16CStr::from_slice(u_example0).unwrap());
@@ -581,6 +621,9 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
     }
 
     #[cfg(feature = "std")] {
+        use std::borrow::Cow;
+        use std::format;
+
         assert_eq!(r1.null          .to_string_lossy(), "");
         assert_eq!(r1.empty         .to_string_lossy(), "");
         assert_eq!(r1.example       .to_string_lossy(), "example");
@@ -606,14 +649,14 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 #[cfg(feature = "std")] #[allow(dead_code)] mod cstrptr_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
-    /// fn f(_: CStrPtr) {}
+    /// fn f(_: CStrPtr<'_, encoding::Unknown8>) {}
     /// let local = *b"example\0";
     /// f(CStrPtr::from_bytes_with_nul(&local).unwrap());
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(_: CStrPtr<'static>) {}
+    /// fn f(_: CStrPtr<'static, encoding::Unknown8>) {}
     /// let local = *b"example\0";
     /// f(CStrPtr::from_bytes_with_nul(&local).unwrap());
     /// ```
@@ -621,14 +664,14 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(_: CStrPtr) {}
+    /// fn f(_: CStrPtr<'_, encoding::Unknown8>) {}
     /// let local = *b"example\0";
     /// f(unsafe { CStrPtr::from_bytes_with_nul_unchecked(&local) });
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(_: CStrPtr<'static>) {}
+    /// fn f(_: CStrPtr<'static, encoding::Unknown8>) {}
     /// let local = *b"example\0";
     /// f(unsafe { CStrPtr::from_bytes_with_nul_unchecked(&local) });
     /// ```
@@ -636,56 +679,56 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static>) -> &'static [u8] { ptr.to_bytes() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Unknown8>) -> &'static [u8] { ptr.to_bytes() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr) -> &'static [u8] { ptr.to_bytes() }
+    /// fn f(ptr: CStrPtr<encoding::Unknown8>) -> &'static [u8] { ptr.to_bytes() }
     /// ```
     struct ToBytesLifetime;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static>) -> &'static [u8] { ptr.to_bytes_with_nul() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Unknown8>) -> &'static [u8] { ptr.to_bytes_with_nul() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr) -> &'static [u8] { ptr.to_bytes_with_nul() }
+    /// fn f(ptr: CStrPtr<encoding::Unknown8>) -> &'static [u8] { ptr.to_bytes_with_nul() }
     /// ```
     struct ToBytesWithNulLifetime;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static>) -> &'static std::ffi::CStr { ptr.to_cstr() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Unknown8>) -> &'static std::ffi::CStr { ptr.to_cstr() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr) -> &'static std::ffi::CStr { ptr.to_cstr() }
+    /// fn f(ptr: CStrPtr<encoding::Unknown8>) -> &'static std::ffi::CStr { ptr.to_cstr() }
     /// ```
     struct ToCStr;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static>) -> &'static str { ptr.to_str().unwrap() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Utf8ish>) -> &'static str { ptr.to_str().unwrap() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr) -> &'static str { ptr.to_str().unwrap() }
+    /// fn f(ptr: CStrPtr<encoding::Utf8ish>) -> &'static str { ptr.to_str().unwrap() }
     /// ```
     struct ToStr;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Utf8ish>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// fn f(ptr: CStrPtr<encoding::Utf8ish>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
     /// ```
     struct ToStringLossy;
 }
@@ -693,14 +736,14 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 #[cfg(feature = "std")] #[allow(dead_code)] mod cstrptr16_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
-    /// fn f(_: CStrPtr<u16>) {}
+    /// fn f(_: CStrPtr<encoding::Unknown16>) {}
     /// let local = [b'e' as u16, b'x' as u16, 0];
     /// f(CStrPtr::from_units_with_nul(&local).unwrap());
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(_: CStrPtr<'static, u16>) {}
+    /// fn f(_: CStrPtr<'static, encoding::Unknown16>) {}
     /// let local = [b'e' as u16, b'x' as u16, 0];
     /// f(CStrPtr::from_units_with_nul(&local).unwrap());
     /// ```
@@ -708,14 +751,14 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(_: CStrPtr<u16>) {}
+    /// fn f(_: CStrPtr<encoding::Unknown16>) {}
     /// let local = [b'e' as u16, b'x' as u16, 0];
     /// f(unsafe { CStrPtr::from_units_with_nul_unchecked(&local) });
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(_: CStrPtr<'static, u16>) {}
+    /// fn f(_: CStrPtr<'static, encoding::Unknown16>) {}
     /// let local = [b'e' as u16, b'x' as u16, 0];
     /// f(unsafe { CStrPtr::from_units_with_nul_unchecked(&local) });
     /// ```
@@ -723,58 +766,58 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static [u16] { ptr.to_units() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Unknown16>) -> &'static [u16] { ptr.to_units() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<u16>) -> &'static [u16] { ptr.to_units() }
+    /// fn f(ptr: CStrPtr<encoding::Unknown16>) -> &'static [u16] { ptr.to_units() }
     /// ```
     struct ToUnitsLifetime;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static [u16] { ptr.to_units_with_nul() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Unknown16>) -> &'static [u16] { ptr.to_units_with_nul() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<u16>) -> &'static [u16] { ptr.to_units_with_nul() }
+    /// fn f(ptr: CStrPtr<encoding::Unknown16>) -> &'static [u16] { ptr.to_units_with_nul() }
     /// ```
     struct ToUnitsWithNulLifetime;
 
     #[cfg(feature = "widestring")]
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Unknown16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<u16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
+    /// fn f(ptr: CStrPtr<encoding::Unknown16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
     /// ```
     struct ToCStr;
 
     #[cfg(feature = "widestring")]
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static, u16>) -> &'static widestring::U16Str { ptr.to_u16str() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Unknown16>) -> &'static widestring::U16Str { ptr.to_u16str() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<u16>) -> &'static widestring::U16Str { ptr.to_u16str() }
+    /// fn f(ptr: CStrPtr<encoding::Unknown16>) -> &'static widestring::U16Str { ptr.to_u16str() }
     /// ```
     struct ToStr;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<'static, u16>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// fn f(ptr: CStrPtr<'static, encoding::Utf16ish>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrPtr<u16>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// fn f(ptr: CStrPtr<encoding::Utf16ish>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
     /// ```
     struct ToStringLossy;
 }
@@ -782,14 +825,14 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 #[cfg(feature = "std")] #[allow(dead_code)] mod cstrnonnull_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
-    /// fn f(_: CStrNonNull) {}
+    /// fn f(_: CStrNonNull<encoding::Unknown8>) {}
     /// let local = *b"example\0";
     /// f(CStrNonNull::from_bytes_with_nul(&local).unwrap());
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(_: CStrNonNull<'static>) {}
+    /// fn f(_: CStrNonNull<'static, encoding::Unknown8>) {}
     /// let local = *b"example\0";
     /// f(CStrNonNull::from_bytes_with_nul(&local).unwrap());
     /// ```
@@ -797,14 +840,14 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(_: CStrNonNull) {}
+    /// fn f(_: CStrNonNull<encoding::Unknown8>) {}
     /// let local = *b"example\0";
     /// f(unsafe { CStrNonNull::from_bytes_with_nul_unchecked(&local) });
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(_: CStrNonNull<'static>) {}
+    /// fn f(_: CStrNonNull<'static, encoding::Unknown8>) {}
     /// let local = *b"example\0";
     /// f(unsafe { CStrNonNull::from_bytes_with_nul_unchecked(&local) });
     /// ```
@@ -812,56 +855,56 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static>) -> &'static [u8] { ptr.to_bytes() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Unknown8>) -> &'static [u8] { ptr.to_bytes() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull) -> &'static [u8] { ptr.to_bytes() }
+    /// fn f(ptr: CStrNonNull<encoding::Unknown8>) -> &'static [u8] { ptr.to_bytes() }
     /// ```
     struct ToBytesLifetime;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static>) -> &'static [u8] { ptr.to_bytes_with_nul() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Unknown8>) -> &'static [u8] { ptr.to_bytes_with_nul() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull) -> &'static [u8] { ptr.to_bytes_with_nul() }
+    /// fn f(ptr: CStrNonNull<encoding::Unknown8>) -> &'static [u8] { ptr.to_bytes_with_nul() }
     /// ```
     struct ToBytesWithNulLifetime;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static>) -> &'static std::ffi::CStr { ptr.to_cstr() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Unknown8>) -> &'static std::ffi::CStr { ptr.to_cstr() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull) -> &'static std::ffi::CStr { ptr.to_cstr() }
+    /// fn f(ptr: CStrNonNull<encoding::Unknown8>) -> &'static std::ffi::CStr { ptr.to_cstr() }
     /// ```
     struct ToCStr;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static>) -> &'static str { ptr.to_str().unwrap() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Utf8ish>) -> &'static str { ptr.to_str().unwrap() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull) -> &'static str { ptr.to_str().unwrap() }
+    /// fn f(ptr: CStrNonNull<encoding::Utf8ish>) -> &'static str { ptr.to_str().unwrap() }
     /// ```
     struct ToStr;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Utf8ish>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// fn f(ptr: CStrNonNull<encoding::Utf8ish>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
     /// ```
     struct ToStringLossy;
 }
@@ -869,14 +912,14 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 #[cfg(feature = "std")] #[allow(dead_code)] mod cstrnonnull16_lifetime_tests {
     /// ```no_run
     /// use abistr::*;
-    /// fn f(_: CStrNonNull<u16>) {}
+    /// fn f(_: CStrNonNull<encoding::Unknown16>) {}
     /// let local = [b'e' as u16, b'x' as u16, 0];
     /// f(CStrNonNull::from_units_with_nul(&local).unwrap());
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(_: CStrNonNull<'static, u16>) {}
+    /// fn f(_: CStrNonNull<'static, encoding::Unknown16>) {}
     /// let local = [b'e' as u16, b'x' as u16, 0];
     /// f(CStrNonNull::from_units_with_nul(&local).unwrap());
     /// ```
@@ -884,14 +927,14 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(_: CStrNonNull<u16>) {}
+    /// fn f(_: CStrNonNull<encoding::Unknown16>) {}
     /// let local = [b'e' as u16, b'x' as u16, 0];
     /// f(unsafe { CStrNonNull::from_units_with_nul_unchecked(&local) });
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(_: CStrNonNull<'static, u16>) {}
+    /// fn f(_: CStrNonNull<'static, encoding::Unknown16>) {}
     /// let local = [b'e' as u16, b'x' as u16, 0];
     /// f(unsafe { CStrNonNull::from_units_with_nul_unchecked(&local) });
     /// ```
@@ -899,63 +942,63 @@ impl<'s> From<&'s CStr> for CStrNonNull<'s> {
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static [u16] { ptr.to_units() }
-    /// fn g(ptr: CStrNonNull<         u16>) -> &        [u16] { ptr.to_units() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Unknown16>) -> &'static [u16] { ptr.to_units() }
+    /// fn g(ptr: CStrNonNull<         encoding::Unknown16>) -> &        [u16] { ptr.to_units() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<u16>) -> &'static [u16] { ptr.to_units() }
+    /// fn f(ptr: CStrNonNull<encoding::Unknown16>) -> &'static [u16] { ptr.to_units() }
     /// ```
     struct ToBytesLifetime;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static [u16] { ptr.to_units_with_nul() }
-    /// fn g(ptr: CStrNonNull<         u16>) -> &        [u16] { ptr.to_units_with_nul() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Unknown16>) -> &'static [u16] { ptr.to_units_with_nul() }
+    /// fn g(ptr: CStrNonNull<         encoding::Unknown16>) -> &        [u16] { ptr.to_units_with_nul() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<u16>) -> &'static [u16] { ptr.to_units_with_nul() }
+    /// fn f(ptr: CStrNonNull<encoding::Unknown16>) -> &'static [u16] { ptr.to_units_with_nul() }
     /// ```
     struct ToBytesWithNulLifetime;
 
     #[cfg(feature = "widestring")]
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
-    /// fn g(ptr: CStrNonNull<         u16>) -> &        widestring::U16CStr { ptr.to_u16cstr() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Unknown16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
+    /// fn g(ptr: CStrNonNull<         encoding::Unknown16>) -> &        widestring::U16CStr { ptr.to_u16cstr() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<u16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
+    /// fn f(ptr: CStrNonNull<encoding::Unknown16>) -> &'static widestring::U16CStr { ptr.to_u16cstr() }
     /// ```
     struct ToCStr;
 
     #[cfg(feature = "widestring")]
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static, u16>) -> &'static widestring::U16Str { ptr.to_u16str() }
-    /// fn g(ptr: CStrNonNull<         u16>) -> &        widestring::U16Str { ptr.to_u16str() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Unknown16>) -> &'static widestring::U16Str { ptr.to_u16str() }
+    /// fn g(ptr: CStrNonNull<         encoding::Unknown16>) -> &        widestring::U16Str { ptr.to_u16str() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<u16>) -> &'static widestring::U16Str { ptr.to_u16str() }
+    /// fn f(ptr: CStrNonNull<encoding::Unknown16>) -> &'static widestring::U16Str { ptr.to_u16str() }
     /// ```
     struct ToStr;
 
     /// ```no_run
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<'static, u16>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
-    /// fn g(ptr: CStrNonNull<         u16>) -> std::borrow::Cow<         str> { ptr.to_string_lossy() }
+    /// fn f(ptr: CStrNonNull<'static, encoding::Utf16ish>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// fn g(ptr: CStrNonNull<         encoding::Utf16ish>) -> std::borrow::Cow<         str> { ptr.to_string_lossy() }
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
-    /// fn f(ptr: CStrNonNull<u16>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
+    /// fn f(ptr: CStrNonNull<encoding::Utf16ish>) -> std::borrow::Cow<'static, str> { ptr.to_string_lossy() }
     /// ```
     struct ToStringLossy;
 }

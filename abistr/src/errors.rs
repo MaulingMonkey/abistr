@@ -1,3 +1,5 @@
+use crate::*;
+
 #[cfg(feature = "std")] use std::error::Error;
 #[cfg(feature = "std")] use std::ffi;
 
@@ -36,13 +38,13 @@ impl Error      for NotNulTerminatedError { fn description(&self) -> &str { "dat
 
 
 
-/// The string in question contains no terminal `\0`, or contains an interior `\0`.
+/// The string in question contains no terminal `\0`, contains an interior `\0`, or contains an invalid sequence for the [`Encoding`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FromUnitsWithNulError(pub(crate) ());
 impl Debug      for FromUnitsWithNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("FromUnitsWithNulError") } }
-impl Display    for FromUnitsWithNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("data provided is not nul terminated, or contains interior nuls") } }
+impl Display    for FromUnitsWithNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt::Result { fmt.write_str("data provided is not nul terminated, contains interior nuls, or contains invalid sequences for the Encoding") } }
 #[cfg(feature = "std")]
-impl Error      for FromUnitsWithNulError { fn description(&self) -> &str { "data provided is not nul terminated, or contains interior nuls" } }
+impl Error      for FromUnitsWithNulError { fn description(&self) -> &str { "data provided is not nul terminated, contains interior nuls, or contains invalid sequences for the Encoding" } }
 #[cfg(feature = "std")] convert!(ffi::FromBytesWithNulError => FromUnitsWithNulError);
 // convert!(ffi::FromVecWithNulError => FromUnitsWithNulError); // not yet stable
 // convert!(NotNulTerminatedError => FromUnitsWithNulError);    // ...is this lossy?
@@ -58,3 +60,13 @@ impl Display    for InteriorNulError { fn fmt(&self, fmt: &mut Formatter) -> fmt
 #[cfg(feature = "std")]
 impl Error      for InteriorNulError { fn description(&self) -> &str { "data provided contains interior nuls" } }
 #[cfg(feature = "std")] convert!(ffi::NulError => InteriorNulError);
+
+impl InteriorNulError {
+    pub(crate) fn check<U: Unit>(str: &[U]) -> Result<(), InteriorNulError> {
+        if str.iter().copied().any(|u| u == U::NUL) {
+            Err(InteriorNulError(()))
+        } else {
+            Ok(())
+        }
+    }
+}

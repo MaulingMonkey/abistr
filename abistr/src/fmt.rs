@@ -32,7 +32,7 @@ pub(crate) fn c16_units(units: &[u16], f: &mut Formatter) -> fmt::Result {
             0x005C          => write!(f, "\\\\")?,
             0x20 ..= 0x7E   => write!(f, "{}", u as u8 as char)?,
 
-            // Rust doesn't have a UTF16 code unit escape.  Use a C++ style "\u1234" instead of a Rust style "\u{1234}"
+            // Rust doesn't have a UTF-16 code unit escape.  Use a C++ style "\u1234" instead of a Rust style "\u{1234}"
             // to underscore this fact, and discourage using this in text which might need to round trip, which would
             // fail on surrogate pairs.
             esc             => write!(f, "\\u{:04x}", esc)?,
@@ -46,6 +46,25 @@ pub(crate) fn c32_units(units: &[u32], f: &mut Formatter) -> fmt::Result {
     write!(f, "\"")?;
     for u in units.iter().copied() {
         match u {
+            0x00000000      => write!(f, "\\0")?,
+            0x00000009      => write!(f, "\\t")?,
+            0x0000000D      => write!(f, "\\r")?,
+            0x0000000A      => write!(f, "\\n")?,
+            0x00000027      => write!(f, "\\'")?,
+            0x00000022      => write!(f, "\\\"")?,
+            0x0000005C      => write!(f, "\\\\")?,
+            0x20 ..= 0x7E   => write!(f, "{}", u as u8 as char)?,
+            esc             => write!(f, "\\u{{{:x}}}", esc)?,
+        }
+    }
+    write!(f, "\"")?;
+    Ok(())
+}
+
+pub(crate) fn char_units(units: &[char], f: &mut Formatter) -> fmt::Result {
+    write!(f, "\"")?;
+    for u in units.iter().copied() {
+        match u as u32 {
             0x00000000      => write!(f, "\\0")?,
             0x00000009      => write!(f, "\\t")?,
             0x0000000D      => write!(f, "\\r")?,

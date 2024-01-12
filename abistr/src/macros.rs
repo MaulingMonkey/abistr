@@ -16,7 +16,7 @@
     }};
 }
 
-/// Create a <code>&[CStrNonNull]</code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[Utf8] ></code> literal at compile time
 #[cfg(doc)]
 #[macro_export]
 macro_rules! cstr {
@@ -25,7 +25,7 @@ macro_rules! cstr {
     };
 }
 
-/// Create a <code>&[CStrNonNull]</code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[Utf8] ></code> literal at compile time
 #[cfg(not(doc))] // use wildcards for better error messages from proc macro
 #[macro_export]
 macro_rules! cstr {
@@ -34,7 +34,7 @@ macro_rules! cstr {
     };
 }
 
-/// Create a <code>&[CStrNonNull]<[u8]></code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[Utf8] ></code> literal at compile time
 #[cfg(doc)]
 #[macro_export]
 macro_rules! cstr8 {
@@ -43,7 +43,7 @@ macro_rules! cstr8 {
     };
 }
 
-/// Create a <code>&[CStrNonNull]<[u8]></code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[Utf8] ></code> literal at compile time
 #[cfg(not(doc))] // use wildcards for better error messages from proc macro
 #[macro_export]
 macro_rules! cstr8 {
@@ -52,7 +52,7 @@ macro_rules! cstr8 {
     };
 }
 
-/// Create a <code>&[CStrNonNull]<[u16]></code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[Utf16]></code> literal at compile time
 #[cfg(doc)]
 #[macro_export]
 macro_rules! cstr16 {
@@ -61,7 +61,7 @@ macro_rules! cstr16 {
     };
 }
 
-/// Create a <code>&[CStrNonNull]<[u16]></code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[Utf16]></code> literal at compile time
 #[cfg(not(doc))] // use wildcards for better error messages from proc macro
 #[macro_export]
 macro_rules! cstr16 {
@@ -70,31 +70,31 @@ macro_rules! cstr16 {
     };
 }
 
-/// Create a <code>&[CStrNonNull]<[u32]></code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[Utf32]></code> literal at compile time
 #[cfg(doc)]
 #[macro_export]
 macro_rules! cstr32 {
     ( $string:literal ) => {
-        $crate::abistr_macros::cstr32_impl!(($crate) $string)
+        $crate::abistr_macros::cstr32c_impl!(($crate) $string)
     };
 }
 
-/// Create a <code>&[CStrNonNull]<[u32]></code> literal at compile time
+/// Create a <code>&[CStrNonNull]<[Utf32]></code> literal at compile time
 #[cfg(not(doc))] // use wildcards for better error messages from proc macro
 #[macro_export]
 macro_rules! cstr32 {
     ( $($tt:tt)+ ) => {
-        $crate::abistr_macros::cstr32_impl!(($crate) $($tt)+)
+        $crate::abistr_macros::cstr32c_impl!(($crate) $($tt)+)
     };
 }
 
 
 
 #[test] fn basics() {
-    fn a(_: CStrNonNull<'static>) {}
-    fn b(_: CStrNonNull) {}
+    fn a(_: CStrNonNull<'static, encoding::Utf8>) {}
+    fn b(_: CStrNonNull<encoding::Utf8>) {}
 
-    const _C : CStrNonNull<'static> = cstr!("C");
+    const _C : CStrNonNull<'static, encoding::Utf8> = cstr!("C");
 
     let empty       = cstr!("");
     let example     = cstr!("example");
@@ -113,10 +113,10 @@ macro_rules! cstr32 {
 }
 
 #[test] fn basics8() {
-    fn a(_: CStrNonNull<'static>) {}
-    fn b(_: CStrNonNull) {}
+    fn a(_: CStrNonNull<'static, encoding::Utf8>) {}
+    fn b(_: CStrNonNull<encoding::Utf8>) {}
 
-    const _C : CStrNonNull<'static> = cstr8!("C");
+    const _C : CStrNonNull<'static, encoding::Utf8> = cstr8!("C");
 
     let empty       = cstr8!("");
     let example     = cstr8!("example");
@@ -135,10 +135,10 @@ macro_rules! cstr32 {
 }
 
 #[test] fn basics16() {
-    fn a(_: CStrNonNull<'static, u16>) {}
-    fn b(_: CStrNonNull<u16>) {}
+    fn a(_: CStrNonNull<'static, encoding::Utf16>) {}
+    fn b(_: CStrNonNull<encoding::Utf16>) {}
 
-    const _C : CStrNonNull<'static, u16> = cstr16!("C");
+    const _C : CStrNonNull<'static, encoding::Utf16> = cstr16!("C");
 
     let empty       = cstr16!("");
     let example     = cstr16!("example");
@@ -153,16 +153,16 @@ macro_rules! cstr32 {
 }
 
 #[test] fn basics32() {
-    fn a(_: CStrNonNull<'static, u32>) {}
-    fn b(_: CStrNonNull<u32>) {}
+    fn a(_: CStrNonNull<'static, encoding::Utf32>) {}
+    fn b(_: CStrNonNull<encoding::Utf32>) {}
 
-    const _C : CStrNonNull<'static, u32> = cstr32!("C");
+    const _C : CStrNonNull<'static, encoding::Utf32> = cstr32!("C");
 
     let empty       = cstr32!("");
     let example     = cstr32!("example");
 
     assert_eq!(empty        .to_units(), []);
-    assert_eq!(example      .to_units(), [b'e' as u32, b'x' as u32, b'a' as u32, b'm' as u32, b'p' as u32, b'l' as u32, b'e' as u32]);
+    assert_eq!(example      .to_units(), "example".chars().collect::<alloc::vec::Vec<_>>().as_slice());
 
     a(empty);
     b(empty);

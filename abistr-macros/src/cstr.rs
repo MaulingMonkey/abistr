@@ -5,12 +5,14 @@ use core::iter::FromIterator;
 
 
 pub(super) trait Unit : From<u8> {
+    fn utf_encoding() -> &'static str;
     fn name() -> &'static str;
     fn into_ts(units: &[Self], s: Span) -> TokenStream;
     fn extend(units: &mut Vec<Self>, ch: char);
 }
 
 impl Unit for u8 {
+    fn utf_encoding() -> &'static str { "Utf8" }
     fn name() -> &'static str { "u8" }
 
     fn into_ts(units: &[Self], s: Span) -> TokenStream {
@@ -26,6 +28,7 @@ impl Unit for u8 {
 }
 
 impl Unit for u16 {
+    fn utf_encoding() -> &'static str { "Utf16" }
     fn name() -> &'static str { "u16" }
 
     fn into_ts(units: &[Self], s: Span) -> TokenStream {
@@ -55,6 +58,7 @@ impl Unit for u16 {
 }
 
 impl Unit for u32 {
+    fn utf_encoding() -> &'static str { "Utf32ish" }
     fn name() -> &'static str { "u32" }
 
     fn into_ts(units: &[Self], s: Span) -> TokenStream {
@@ -79,6 +83,35 @@ impl Unit for u32 {
 
     fn extend(units: &mut Vec<Self>, ch: char) {
         units.push(ch as u32);
+    }
+}
+
+impl Unit for char {
+    fn utf_encoding() -> &'static str { "Utf32" }
+    fn name() -> &'static str { "char" }
+
+    fn into_ts(units: &[Self], s: Span) -> TokenStream {
+        let mut elements = TokenStream::new();
+        let mut units = units.iter().copied();
+        if let Some(u) = units.next() {
+            elements.extend(Some(TokenTree::from(Literal::character(u))));
+        }
+        for u in units {
+            elements.extend(Some(ttp(',', Spacing::Joint, s)));
+            elements.extend(Some(TokenTree::from(Literal::character(u))));
+        }
+
+        let mut array = Group::new(Delimiter::Bracket, elements);
+        array.set_span(s);
+
+        let mut o = TokenStream::new();
+        o.extend(Some(ttp('&', Spacing::Alone, s)));
+        o.extend(Some(TokenTree::from(array)));
+        o
+    }
+
+    fn extend(units: &mut Vec<Self>, ch: char) {
+        units.push(ch);
     }
 }
 
@@ -120,7 +153,7 @@ pub(super) fn cstr_impl<U: Unit>(input: TokenStream) -> TokenStream {
 
     let s = literal.span();
     let mut o = TokenStream::new();
-    o.extend(crate_);
+    o.extend(crate_.clone());
     o.extend(vec![
         ttp(':', Spacing::Joint, s),
         ttp(':', Spacing::Joint, s),
@@ -128,7 +161,15 @@ pub(super) fn cstr_impl<U: Unit>(input: TokenStream) -> TokenStream {
         ttp(':', Spacing::Joint, s),
         ttp(':', Spacing::Joint, s),
         ttp('<', Spacing::Joint, s),
-        ttid(U::name(), s),
+    ]);
+    o.extend(crate_);
+    o.extend(vec![
+        ttp(':', Spacing::Joint, s),
+        ttp(':', Spacing::Joint, s),
+        ttid("encoding", s),
+        ttp(':', Spacing::Joint, s),
+        ttp(':', Spacing::Joint, s),
+        ttid(U::utf_encoding(), s),
         ttp('>', Spacing::Joint, s),
         ttp(':', Spacing::Joint, s),
         ttp(':', Spacing::Joint, s),

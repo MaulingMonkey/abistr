@@ -16,12 +16,18 @@ exclude         = [".vscode"]
 
 [features]
 default         = ["std"]
-std             = []
+std             = ["alloc", "widestring/std"]
+alloc           = ["widestring/alloc"]
+
+assume-core-ffi-cstr-utf8ish            = [] # allow this crate to assume core::ffi::CStr / alloc::ffi::CString are Utf8ish (mediocre assumption)
+assume-std-ffi-osstr-utf8ish-unix       = [] # allow this crate to assume std::ffi::{OsStr, OsString, Path, PathBuf} are UTF8sih on unix platforms (mediocre assumption)
+#ssume-std-ffi-osstr-utf16ish-windows   = [] # automatic: windows assumes std::ffi::{OsStr, OsString, Path, PathBuf} are WTF-8 encoded UTF-16
+assume-widestring-utfish                = [] # allow this crate to assume widestring::U{16,32}CString are UTF{16,32}ish (mediocre assumption, but it's public API also makes this assumption in places.)
 
 [package.metadata.docs.rs]
 all-features    = true
 
 [dependencies]
 abistr-macros   = { path = "../abistr-macros", version = "0.0.0-git" }
-bytemuck        = { version = "1", optional = true }
+bytemuck        = { version = "1.14", features = ["must_cast"] }
 widestring      = { package = "widestring", version = "1", optional = true }
