@@ -12,7 +12,7 @@
         },
         {
             "label":            "help",
-            "command":          "cargo doc --no-deps --open",
+            "command":          "cargo +stable doc --no-deps --open --target-dir=target/stable",
         },
 
 
