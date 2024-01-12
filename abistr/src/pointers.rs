@@ -34,7 +34,7 @@ impl<'s, E: Encoding> CStrPtr<'s, E> {
     /// *   `ptr` must point to a `\0`-terminated, `E` [Encoding], C string.
     /// *   The underlying C-string cannot change for the duration of the lifetime `'s`.
     /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally dangle.  Be careful!
-    pub const unsafe fn from_ptr_unchecked(ptr: *const E::Unit) -> Self { Self { ptr, phantom: PhantomData } }
+    #[inline(always)] pub const unsafe fn from_ptr_unchecked(ptr: *const E::Unit) -> Self { Self { ptr, phantom: PhantomData } }
 
     /// Convert a raw slice of units, presumably with [Encoding] `E`, into a [`CStrPtr`].
     ///
@@ -62,18 +62,18 @@ impl<'s, E: Encoding> CStrPtr<'s, E> {
     }
 
     /// Treat `self` as a raw, possibly <code>[null]\(\)</code> C string.
-    pub const fn as_ptr(&self) -> *const E::Unit { self.ptr }
+    #[inline(always)] pub const fn as_ptr(self) -> *const E::Unit { self.ptr }
 
     /// Checks if `self` is <code>[null]\(\)</code>.
-    pub fn is_null(&self) -> bool { self.ptr.is_null() }
+    #[inline(always)] pub fn is_null(self) -> bool { self.ptr.is_null() }
 
     /// Checks if `self` is empty (either null, or the first character is `\0`.)
-    pub fn is_empty(&self) -> bool { self.ptr.is_null() || E::Unit::NUL == unsafe { *self.ptr } }
+    #[inline(always)] pub fn is_empty(self) -> bool { self.ptr.is_null() || E::Unit::NUL == unsafe { *self.ptr } }
 
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, **excluding** the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_units(&self) -> &'s [E::Unit] {
+    pub fn to_units(self) -> &'s [E::Unit] {
         if self.ptr.is_null() { return &[]; }
         let start = self.ptr;
         unsafe { core::slice::from_raw_parts(start, strlen(start)) }
@@ -82,7 +82,7 @@ impl<'s, E: Encoding> CStrPtr<'s, E> {
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, including the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_units_with_nul(&self) -> &'s [E::Unit] {
+    pub fn to_units_with_nul(self) -> &'s [E::Unit] {
         if self.ptr.is_null() { return E::Unit::EMPTY; }
         let start = self.ptr;
         unsafe { core::slice::from_raw_parts(start, strlen(start) + 1) }
@@ -91,19 +91,19 @@ impl<'s, E: Encoding> CStrPtr<'s, E> {
     /// Convert `self` to a <code>[alloc::borrow::Cow]\<[str]\></code>.
     ///
     /// `O(n)` to find the terminal `\0` and convert/validate.
-    #[cfg(feature = "alloc")] pub fn to_string_lossy(&self) -> alloc::borrow::Cow<'s, str> where E: ToChars { E::to_string_lossy(self.to_units()) }
+    #[cfg(feature = "alloc")] pub fn to_string_lossy(self) -> alloc::borrow::Cow<'s, str> where E: ToChars { E::to_string_lossy(self.to_units()) }
 }
 
 impl<'s, E: Encoding<Unit = u8>> CStrPtr<'s, E> {
-    #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<u8> { Self::from_units_with_nul(bytes) }
-    #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { unsafe { Self::from_units_with_nul_unchecked(bytes) } }
-    #[doc(hidden)] pub fn to_bytes(&self) -> &'s [u8] { self.to_units() }
-    #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_units_with_nul() }
+    #[doc(hidden)] #[inline(always)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<u8> { Self::from_units_with_nul(bytes) }
+    #[doc(hidden)] #[inline(always)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { unsafe { Self::from_units_with_nul_unchecked(bytes) } }
+    #[doc(hidden)] #[inline(always)] pub fn to_bytes(self) -> &'s [u8] { self.to_units() }
+    #[doc(hidden)] #[inline(always)] pub fn to_bytes_with_nul(self) -> &'s [u8] { self.to_units_with_nul() }
 
     /// Convert `self` to a [`core::ffi::CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_cstr(&self) -> &'s CStr {
+    pub fn to_cstr(self) -> &'s CStr {
         if self.ptr.is_null() {
             unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") }
         } else {
@@ -116,14 +116,14 @@ impl<'s> CStrPtr<'s, Utf8ish> {
     /// Convert `self` to a <code>&[str]</code>.
     ///
     /// `O(n)` to find the terminal `\0` and validate UTF-8.
-    pub fn to_str(&self) -> Result<&'s str, Utf8Error> { core::str::from_utf8(self.to_units()) }
+    #[inline(always)] pub fn to_str(self) -> Result<&'s str, Utf8Error> { core::str::from_utf8(self.to_units()) }
 }
 
 impl<'s> CStrPtr<'s, Utf8> {
     /// Convert `self` to a <code>&[str]</code>.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_str(&self) -> &'s str { unsafe { core::str::from_utf8_unchecked(self.to_units()) } }
+    #[inline(always)] pub fn to_str(self) -> &'s str { unsafe { core::str::from_utf8_unchecked(self.to_units()) } }
 }
 
 #[cfg(feature = "widestring")] const _ : () = {
@@ -133,7 +133,7 @@ impl<'s> CStrPtr<'s, Utf8> {
         /// Convert `self` to a [`U16CStr`].
         ///
         /// `O(n)` to find the terminal `\0`.
-        pub fn to_u16cstr(&self) -> &'s U16CStr {
+        pub fn to_u16cstr(self) -> &'s U16CStr {
             if self.ptr.is_null() {
                 Default::default()
             } else {
@@ -144,14 +144,14 @@ impl<'s> CStrPtr<'s, Utf8> {
         /// Convert `self` to a [`U16Str`].
         ///
         /// `O(n)` to find the terminal `\0`
-        pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
+        pub fn to_u16str(self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
     }
 
     impl<'s, E: Encoding<Unit = u32>> CStrPtr<'s, E> {
         /// Convert `self` to a [`U32CStr`].
         ///
         /// `O(n)` to find the terminal `\0`.
-        pub fn to_u32cstr(&self) -> &'s U32CStr {
+        pub fn to_u32cstr(self) -> &'s U32CStr {
             if self.ptr.is_null() {
                 Default::default()
             } else {
@@ -162,7 +162,7 @@ impl<'s> CStrPtr<'s, Utf8> {
         /// Convert `self` to a [`U32Str`].
         ///
         /// `O(n)` to find the terminal `\0`
-        pub fn to_u32str(&self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
+        pub fn to_u32str(self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
     }
 
     #[cfg(todo)] const _ : () = { /* ...conversions to Utf{16,32}Str, U{16,32}CStr ? */ };
@@ -210,7 +210,7 @@ impl<'s, E: Encoding> CStrNonNull<'s, E> {
     /// *   `ptr` must point to a `\0`-terminated, `E` [Encoding], C string
     /// *   The underlying C-string cannot change for the duration of the lifetime `'s`.
     /// *   The lifetime `'s` is unbounded by this fn.  Very easy to accidentally dangle.  Be careful!
-    pub const unsafe fn from_ptr_unchecked(ptr: *const E::Unit) -> Self { Self { ptr: unsafe { NonNull::new_unchecked(ptr as *mut _) }, phantom: PhantomData } }
+    #[inline(always)] pub const unsafe fn from_ptr_unchecked(ptr: *const E::Unit) -> Self { Self { ptr: unsafe { NonNull::new_unchecked(ptr as *mut _) }, phantom: PhantomData } }
 
     /// Convert a raw slice of units, presumably with [Encoding] `E`, into a [`CStrNonNull`].
     ///
@@ -244,18 +244,18 @@ impl<'s, E: Encoding> CStrNonNull<'s, E> {
     }
 
     /// Treat `self` as a raw C string.
-    pub const fn as_ptr(&self) -> *const E::Unit { self.ptr.as_ptr().cast() }
+    #[inline(always)] pub const fn as_ptr(self) -> *const E::Unit { self.ptr.as_ptr().cast() }
 
     /// Treat `self` as a [`NonNull`] C string.
-    pub const fn as_non_null(&self) -> NonNull<E::Unit> { self.ptr }
+    #[inline(always)] pub const fn as_non_null(self) -> NonNull<E::Unit> { self.ptr }
 
     /// Checks if `self` is empty (either <code>[null]\(\)</code>, or the first character is `\0`.)
-    pub fn is_empty(&self) -> bool { E::Unit::NUL == unsafe { *self.ptr.as_ptr().cast() } }
+    #[inline(always)] pub fn is_empty(self) -> bool { E::Unit::NUL == unsafe { *self.ptr.as_ptr().cast() } }
 
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, **excluding** the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_units(&self) -> &'s [E::Unit] {
+    pub fn to_units(self) -> &'s [E::Unit] {
         let start = self.ptr.as_ptr().cast();
         unsafe { core::slice::from_raw_parts(start, strlen(start) + 0) }
     }
@@ -263,7 +263,7 @@ impl<'s, E: Encoding> CStrNonNull<'s, E> {
     /// Convert `self` to a <code>&\[[Unit]\]</code> slice, including the terminal `\0`.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_units_with_nul(&self) -> &'s [E::Unit] {
+    pub fn to_units_with_nul(self) -> &'s [E::Unit] {
         let start = self.ptr.as_ptr().cast();
         unsafe { core::slice::from_raw_parts(start, strlen(start) + 1) }
     }
@@ -271,33 +271,33 @@ impl<'s, E: Encoding> CStrNonNull<'s, E> {
     /// Convert `self` to a <code>[alloc::borrow::Cow]\<[str]\></code>.
     ///
     /// `O(n)` to find the terminal `\0` and convert/validate.
-    #[cfg(feature = "alloc")] pub fn to_string_lossy(&self) -> alloc::borrow::Cow<'s, str> where E: ToChars { E::to_string_lossy(self.to_units()) }
+    #[cfg(feature = "alloc")] pub fn to_string_lossy(self) -> alloc::borrow::Cow<'s, str> where E: ToChars { E::to_string_lossy(self.to_units()) }
 }
 
 impl<'s, E: Encoding<Unit = u8>> CStrNonNull<'s, E> {
-    #[doc(hidden)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<u8> { Self::from_units_with_nul(bytes) }
-    #[doc(hidden)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { unsafe { Self::from_units_with_nul_unchecked(bytes) } }
-    #[doc(hidden)] pub fn to_bytes(&self) -> &'s [u8] { self.to_units() }
-    #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> &'s [u8] { self.to_units_with_nul() }
+    #[doc(hidden)] #[inline(always)] pub fn from_bytes_with_nul(bytes: &'s [u8]) -> Result<Self, FromUnitsWithNulError> where E: FromUnits<u8> { Self::from_units_with_nul(bytes) }
+    #[doc(hidden)] #[inline(always)] pub unsafe fn from_bytes_with_nul_unchecked(bytes: &'s [u8]) -> Self { unsafe { Self::from_units_with_nul_unchecked(bytes) } }
+    #[doc(hidden)] #[inline(always)] pub fn to_bytes(self) -> &'s [u8] { self.to_units() }
+    #[doc(hidden)] #[inline(always)] pub fn to_bytes_with_nul(self) -> &'s [u8] { self.to_units_with_nul() }
 
     /// Convert `self` to a [`core::ffi::CStr`].
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_cstr(&self) -> &'s CStr { unsafe { CStr::from_ptr(self.as_ptr().cast()) } }
+    #[inline(always)] pub fn to_cstr(self) -> &'s CStr { unsafe { CStr::from_ptr(self.as_ptr().cast()) } }
 }
 
 impl<'s> CStrNonNull<'s, Utf8ish> {
     /// Convert `self` to a <code>&[str]</code>.
     ///
     /// `O(n)` to find the terminal `\0` and validate UTF-8.
-    pub fn to_str(&self) -> Result<&'s str, Utf8Error> { core::str::from_utf8(self.to_units()) }
+    #[inline(always)] pub fn to_str(self) -> Result<&'s str, Utf8Error> { core::str::from_utf8(self.to_units()) }
 }
 
 impl<'s> CStrNonNull<'s, Utf8> {
     /// Convert `self` to a <code>&[str]</code>.
     ///
     /// `O(n)` to find the terminal `\0`.
-    pub fn to_str(&self) -> &'s str { unsafe { core::str::from_utf8_unchecked(self.to_units()) } }
+    #[inline(always)] pub fn to_str(self) -> &'s str { unsafe { core::str::from_utf8_unchecked(self.to_units()) } }
 }
 
 #[cfg(feature = "widestring")] const _ : () = {
@@ -307,24 +307,24 @@ impl<'s> CStrNonNull<'s, Utf8> {
         /// Convert `self` to a [`U16CStr`].
         ///
         /// `O(n)` to find the terminal `\0`.
-        pub fn to_u16cstr(&self) -> &'s U16CStr { unsafe { U16CStr::from_ptr_str(self.as_ptr()) } }
+        #[inline(always)] pub fn to_u16cstr(self) -> &'s U16CStr { unsafe { U16CStr::from_ptr_str(self.as_ptr()) } }
 
         /// Convert `self` to a [`U16Str`].
         ///
         /// `O(n)` to find the terminal `\0`.
-        pub fn to_u16str(&self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
+        #[inline(always)] pub fn to_u16str(self) -> &'s U16Str { U16Str::from_slice(self.to_units()) }
     }
 
     impl<'s, E: Encoding<Unit = u32>> CStrNonNull<'s, E> {
         /// Convert `self` to a [`U32CStr`].
         ///
         /// `O(n)` to find the terminal `\0`.
-        pub fn to_u32cstr(&self) -> &'s U32CStr { unsafe { U32CStr::from_ptr_str(self.as_ptr()) } }
+        #[inline(always)] pub fn to_u32cstr(self) -> &'s U32CStr { unsafe { U32CStr::from_ptr_str(self.as_ptr()) } }
 
         /// Convert `self` to a [`U32Str`].
         ///
         /// `O(n)` to find the terminal `\0`.
-        pub fn to_u32str(&self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
+        #[inline(always)] pub fn to_u32str(self) -> &'s U32Str { U32Str::from_slice(self.to_units()) }
     }
 };
 
