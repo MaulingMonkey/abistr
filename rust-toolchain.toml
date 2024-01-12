@@ -1,4 +1,5 @@
 # https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file
 
 [toolchain]
-channel = "1.64.0"  # abistr 0.2.0-rc4? min req.: core::ffi::c_char
+#channel = "1.64.0"  # core::ffi::c_char
+channel = "1.71.0"  # debugger_visualizer

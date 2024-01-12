@@ -63,6 +63,7 @@
 //!
 //! [DST]:      https://doc.rust-lang.org/nomicon/exotic-sizes.html#dynamically-sized-types-dsts
 
+#![debugger_visualizer(natvis_file = "../abistr.natvis")]
 #![no_std]
 #![warn(missing_docs)]
 #![warn(unsafe_op_in_unsafe_fn)]
