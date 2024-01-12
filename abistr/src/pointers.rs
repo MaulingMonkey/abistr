@@ -558,9 +558,9 @@ for_each! {
     assert_eq!(r2.example       .as_ref().map_or(Ok(""),    |s| s.to_str()), Ok("example"));
     assert_eq!(r2.not_unicode   .as_ref().map_or(false,     |s| s.to_str().is_err()), true);
 
-    #[cfg(feature = "std")] {
-        use std::borrow::Cow;
-        use std::format;
+    #[cfg(feature = "alloc")] {
+        use alloc::borrow::Cow;
+        use alloc::format;
 
         assert_eq!(r1.null          .to_string_lossy(), "");
         assert_eq!(r1.empty         .to_string_lossy(), "");
@@ -709,9 +709,9 @@ for_each! {
         assert_eq!(r2.not_unicode   .as_ref().map_or(&[0xBAD][..], |s| s.to_u16str().as_slice()), &u_not_unicode[..]);
     }
 
-    #[cfg(feature = "std")] {
-        use std::borrow::Cow;
-        use std::format;
+    #[cfg(feature = "alloc")] {
+        use alloc::borrow::Cow;
+        use alloc::format;
 
         assert_eq!(r1.null          .to_string_lossy(), "");
         assert_eq!(r1.empty         .to_string_lossy(), "");
