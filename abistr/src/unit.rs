@@ -22,37 +22,37 @@ impl Unit for char  {}
 pub(crate) mod private {
     use core::fmt::Debug;
 
-    pub trait Unit : Default + Copy + PartialEq + Debug + 'static {
+    pub unsafe trait Unit : Default + Copy + PartialEq + Debug + bytemuck::Zeroable + 'static {
         const NUL : Self;
         const EMPTY : &'static [Self; 1];
         fn zeroed<const N: usize>() -> [Self; N];
     }
 
-    impl Unit for i8 {
+    unsafe impl Unit for i8 {
         const NUL : Self = 0;
         const EMPTY : &'static [Self; 1] = &[0];
         fn zeroed<const N: usize>() -> [Self; N] { unsafe { core::mem::zeroed() } }
     }
 
-    impl Unit for u8 {
+    unsafe impl Unit for u8 {
         const NUL : Self = 0;
         const EMPTY : &'static [Self; 1] = &[0];
         fn zeroed<const N: usize>() -> [Self; N] { unsafe { core::mem::zeroed() } }
     }
 
-    impl Unit for u16 {
+    unsafe impl Unit for u16 {
         const NUL : Self = 0;
         const EMPTY : &'static [Self; 1] = &[0];
         fn zeroed<const N: usize>() -> [Self; N] { unsafe { core::mem::zeroed() } }
     }
 
-    impl Unit for u32 {
+    unsafe impl Unit for u32 {
         const NUL : Self = 0;
         const EMPTY : &'static [Self; 1] = &[0];
         fn zeroed<const N: usize>() -> [Self; N] { unsafe { core::mem::zeroed() } }
     }
 
-    impl Unit for char {
+    unsafe impl Unit for char {
         const NUL : Self = '\0';
         const EMPTY : &'static [Self; 1] = &['\0'];
         fn zeroed<const N: usize>() -> [Self; N] { unsafe { core::mem::zeroed() } }

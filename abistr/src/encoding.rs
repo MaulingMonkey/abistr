@@ -41,6 +41,32 @@ pub trait Encoding : Copy + 'static {
 
 
 
+/// An [`Encoding`] where all patterns of <code>[Encoding]::[Unit](Encoding::Unit)</code> are valid.
+///
+/// ### Safety
+/// Code may rely on this trait to truncate or otherwise mutate string contents without pre/post-conditions.
+///
+/// ### Examples
+/// *   [`CP437`]                                   &mdash; any pattern legal
+/// *   [`Unknown8`], [`Unknown16`], [`Unknown32`]  &mdash; any pattern legal
+/// *   [`Utf8ish`], [`Utf16ish`], [`Utf32ish`]     &mdash; any pattern legal
+///
+/// ### Anti-Examples
+/// *   [`Utf8`]    &mdash; forbids surrogate code points, overlarge encodings, scalar values beyond 0x10FFFF.
+/// *   [`Utf16`]   &mdash; forbids unpaired surrogates, scalar values beyond 0x10FFFF.
+/// *   [`Utf32`]   &mdash; forbids surrogate code points, code points beyond 0x10FFFF.
+///
+pub unsafe trait Infalliable : Encoding {}
+unsafe impl Infalliable for CP437       {}
+unsafe impl Infalliable for Unknown8    {}
+unsafe impl Infalliable for Unknown16   {}
+unsafe impl Infalliable for Unknown32   {}
+unsafe impl Infalliable for Utf8ish     {}
+unsafe impl Infalliable for Utf16ish    {}
+unsafe impl Infalliable for Utf32ish    {}
+
+
+
 /// Create <code>[Encoding]::[Unit](Encoding::Unit)</code>s from [`Unit`]s infalliably.
 ///
 /// ### Safety

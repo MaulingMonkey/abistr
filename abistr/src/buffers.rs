@@ -1,16 +1,12 @@
 use crate::*;
 
-#[cfg(feature = "widestring")] use widestring::*;
-
-#[cfg(feature = "std")] use std::borrow::Cow;
-#[cfg(feature = "std")] use std::ffi::*;
-
+use core::ffi::CStr;
 use core::fmt::{self, Debug, Formatter};
 use core::str::*;
 
 
 
-/// <code>[CStrBuf]<[Unit]; 128></code> is ABI compatible with <code>\[[Unit]; 128\]</code>.
+/// <code>[CStrBuf]<[Encoding]; 128></code> is ABI compatible with <code>\[[Encoding]::[Unit](Encoding::Unit); 128\]</code>.
 ///
 /// ### Safety
 ///
@@ -29,45 +25,45 @@ use core::str::*;
 /// that you might otherwise rely on for FFI.  So... don't.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CStrBuf<U: Unit, const N: usize> {
-    buffer: [U; N],
+pub struct CStrBuf<E: encoding::Infalliable, const N: usize> {
+    buffer: [E::Unit; N],
 }
 
-impl<U: Unit, const N: usize> CStrBuf<U, N> {
+impl<E: encoding::Infalliable, const N: usize> CStrBuf<E, N> {
     /// Create a [`CStrBuf`] from `data` + `\0`.  Will be truncated (with the `\0`) to fit if `data` is too long.
     ///
     /// ### Panics
     ///
     /// If `self.buffer.is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
-    pub fn from_truncate(data: &(impl AsRef<[U]> + ?Sized)) -> Self {
+    pub fn from_truncate(data: &(impl AsRef<[E::Unit]> + ?Sized)) -> Self {
         let mut s = Self::default();
         let _ = s.set_truncate(data);
         s
     }
 
     /// Create a [`CStrBuf`] from `data` + `\0`.  Will be truncated to fit if `data` is too long.  **Not** guaranteed to be `\0`-terminated!
-    pub unsafe fn from_truncate_without_nul(data: &(impl AsRef<[U]> + ?Sized)) -> Self {
+    pub unsafe fn from_truncate_without_nul(data: &(impl AsRef<[E::Unit]> + ?Sized)) -> Self {
         let mut s = Self::default();
-        let _ = s.set_truncate_without_nul(data);
+        let _ = unsafe { s.set_truncate_without_nul(data) };
         s
     }
 
     /// Create a [`CStrBuf`] from `data` + `\0`.
-    pub fn try_from(data: &(impl AsRef<[U]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
+    pub fn try_from(data: &(impl AsRef<[E::Unit]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
         let mut s = Self::default();
         s.try_set(data)?;
         Ok(s)
     }
 
     /// Create a [`CStrBuf`] from `data` + `\0`.  Will succeed even if the `\0` doesn't fit.
-    pub unsafe fn try_from_without_nul(data: &(impl AsRef<[U]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
+    pub unsafe fn try_from_without_nul(data: &(impl AsRef<[E::Unit]> + ?Sized)) -> Result<Self, BufferTooSmallError> {
         let mut s = Self::default();
-        s.try_set_without_nul(data)?;
+        unsafe { s.try_set_without_nul(data) }?;
         Ok(s)
     }
 
     /// Access the underlying byte buffer of `self`
-    pub fn buffer(&self) -> &[U] { &self.buffer[..] }
+    pub fn buffer(&self) -> &[E::Unit] { &self.buffer[..] }
 
     /// Checks if `self` is empty (e.g. the first character is `\0`.)
     pub fn is_empty(&self) -> bool { self.buffer.iter().copied().next() == Some(private::Unit::NUL) }
@@ -75,7 +71,7 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
     /// Get the code units of the string portion of the buffer.  This will not contain any `\0` characters, and is not guaranteed to have a `\0` after the slice!
     ///
     /// `O(n)` to locate the terminal `\0`.
-    pub fn to_units(&self) -> &[U] {
+    pub fn to_units(&self) -> &[E::Unit] {
         let buffer = self.buffer();
         match buffer.iter().copied().position(|ch| ch == private::Unit::NUL) {
             Some(nul)   => &buffer[..nul],
@@ -88,7 +84,7 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
     /// You might prefer [`to_units`](Self::to_units), which cannot fail.
     ///
     /// `O(n)` to locate the terminal `\0`.
-    pub fn to_units_with_nul(&self) -> Result<&[U], NotNulTerminatedError> {
+    pub fn to_units_with_nul(&self) -> Result<&[E::Unit], NotNulTerminatedError> {
         let buffer = self.buffer();
         match buffer.iter().copied().position(|ch| ch == private::Unit::NUL) {
             Some(nul)   => Ok(&buffer[..=nul]),
@@ -107,17 +103,17 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
     ///
     /// Many C APIs assume the underlying buffer is `\0`-terminated, and this method would let you change that.
     /// However, it's worth noting that [`CStrBuf`] technically makes no such guarantee!
-    pub unsafe fn buffer_mut(&mut self) -> &mut [U] { &mut self.buffer[..] }
+    pub unsafe fn buffer_mut(&mut self) -> &mut [E::Unit] { &mut self.buffer[..] }
 
     /// Ensure the buffer is `\0`-terminated by setting the last character to be `\0`.
     ///
     /// ### Panics
     ///
     /// If `self.buffer.is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
-    pub fn nul_truncate(&mut self) -> CStrNonNull<U> {
+    pub fn nul_truncate(&mut self) -> CStrNonNull<E> {
         let buffer = &mut self.buffer[..];
         *buffer.last_mut().unwrap() = private::Unit::NUL;
-        unsafe { CStrNonNull::from_ptr_unchecked_unbounded(buffer.as_ptr().cast()) }
+        unsafe { CStrNonNull::from_ptr_unchecked(buffer.as_ptr().cast()) }
     }
 
     /// Modifies the buffer to contain `data` + `\0`.
@@ -126,7 +122,7 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
     /// ### Panics
     ///
     /// If `self.buffer.is_empty()` (...did you create a `CStrBuf<[u8; 0]>` or something?  Weirdo.)
-    pub fn set_truncate(&mut self, data: &(impl AsRef<[U]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+    pub fn set_truncate(&mut self, data: &(impl AsRef<[E::Unit]> + ?Sized)) -> Result<(), BufferTooSmallError> {
         let src = data.as_ref();
         let dst = &mut self.buffer[..];
         let n = (dst.len()-1).min(src.len());
@@ -138,7 +134,7 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
 
     /// Modifies the buffer to contain `data` + `\0`.
     /// If `data` will not fit, it will be truncated - *without* a final `\0` - before returning <code>[Err]\([BufferTooSmallError]\)</code>.
-    pub unsafe fn set_truncate_without_nul(&mut self, data: &(impl AsRef<[U]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+    pub unsafe fn set_truncate_without_nul(&mut self, data: &(impl AsRef<[E::Unit]> + ?Sized)) -> Result<(), BufferTooSmallError> {
         let src = data.as_ref();
         let dst = &mut self.buffer[..];
         let n = dst.len().min(src.len());
@@ -150,7 +146,7 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
 
     /// Modifies the buffer to contain `data` + `\0`.
     /// If `data` + '\0' will not fit, <code>[Err]\([BufferTooSmallError]\)</code> will be returned without modifying the underlying buffer.
-    pub fn try_set(&mut self, data: &(impl AsRef<[U]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+    pub fn try_set(&mut self, data: &(impl AsRef<[E::Unit]> + ?Sized)) -> Result<(), BufferTooSmallError> {
         let src = data.as_ref();
         let dst = &mut self.buffer[..];
         if src.len() >= dst.len() { Err(BufferTooSmallError(()))? }
@@ -161,7 +157,7 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
 
     /// Modifies the buffer to contain `data` (and a `\0` - but only if it will fit!)
     /// If `data` will not fit, <code>[Err]\([BufferTooSmallError]\)</code> will be returned without modifying the underlying buffer.
-    pub unsafe fn try_set_without_nul(&mut self, data: &(impl AsRef<[U]> + ?Sized)) -> Result<(), BufferTooSmallError> {
+    pub unsafe fn try_set_without_nul(&mut self, data: &(impl AsRef<[E::Unit]> + ?Sized)) -> Result<(), BufferTooSmallError> {
         let src = data.as_ref();
         let dst = &mut self.buffer[..];
         if src.len() > dst.len() { Err(BufferTooSmallError(()))? }
@@ -173,11 +169,10 @@ impl<U: Unit, const N: usize> CStrBuf<U, N> {
     /// Convert the buffer to a <code>&[str]</code>, allocating and replacing invalid UTF8 with [`U+FFFD REPLACEMENT CHARACTER`][core::char::REPLACEMENT_CHARACTER] if necessary.
     ///
     /// `O(n)` to locate the terminal `\0`.
-    #[cfg(feature = "std")]
-    pub fn to_string_lossy(&self) -> Cow<'_, str> { private::Unit::to_string_lossy(self.to_units()) }
+    #[cfg(feature = "alloc")] pub fn to_string_lossy(&self) -> alloc::borrow::Cow<'_, str> where E: encoding::ToChars { E::to_string_lossy(self.to_units()) }
 }
 
-impl<const N: usize> CStrBuf<u8, N> {
+impl<E: encoding::Infalliable + Encoding<Unit = u8>, const N: usize> CStrBuf<E, N> {
     #[doc(hidden)] pub fn to_bytes(&self) -> &[u8] { self.to_units() } // legacy alias for 0.1.1
     #[doc(hidden)] pub fn to_bytes_with_nul(&self) -> Result<&[u8], NotNulTerminatedError> { self.to_units_with_nul() } // legacy alias for 0.1.1
 
@@ -185,7 +180,6 @@ impl<const N: usize> CStrBuf<u8, N> {
     /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
     ///
     /// `O(n)` to locate the terminal `\0`.
-    #[cfg(feature = "std")]
     pub fn to_cstr(&self) -> Result<&CStr, NotNulTerminatedError> { self.to_bytes_with_nul().map(|bytes| unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }) }
 
     /// Attempt to convert the buffer to a <code>&[str]</code>, returning <code>[Err]\([Utf8Error]\)</code> instead if the underlying buffer wasn't valid UTF8.
@@ -194,91 +188,97 @@ impl<const N: usize> CStrBuf<u8, N> {
     pub fn to_str(&self) -> Result<&str, Utf8Error> { from_utf8(self.to_bytes()) }
 }
 
-#[cfg(feature = "widestring")] impl<const N: usize> CStrBuf<u16, N> {
-    /// Attempt to convert the buffer to a [`U16CStr`], returning <code>[Err]\([NotNulTerminatedError]\)</code> instead if the underlying buffer isn't `\0`-terminated.
-    /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
-    ///
-    /// `O(n)` to locate the terminal `\0`.
-    pub fn to_u16cstr(&self) -> Result<&U16CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U16CStr::from_slice_unchecked(units) }) }
+#[cfg(feature = "widestring")] const _ : () = {
+    use widestring::*;
 
-    /// Convert the buffer to a [`U16Str`].
-    ///
-    /// `O(n)` to locate the terminal `\0`.
-    pub fn to_u16str(&self) -> &U16Str { U16Str::from_slice(self.to_units()) }
+    impl<E: encoding::Infalliable + Encoding<Unit = u16>, const N: usize> CStrBuf<E, N> {
+        /// Attempt to convert the buffer to a [`U16CStr`], returning <code>[Err]\([NotNulTerminatedError]\)</code> instead if the underlying buffer isn't `\0`-terminated.
+        /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
+        ///
+        /// `O(n)` to locate the terminal `\0`.
+        pub fn to_u16cstr(&self) -> Result<&U16CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U16CStr::from_slice_unchecked(units) }) }
+
+        /// Convert the buffer to a [`U16Str`].
+        ///
+        /// `O(n)` to locate the terminal `\0`.
+        pub fn to_u16str(&self) -> &U16Str { U16Str::from_slice(self.to_units()) }
+    }
+
+    impl<E: encoding::Infalliable + Encoding<Unit = u32>, const N: usize> CStrBuf<E, N> {
+        /// Attempt to convert the buffer to a [`U32CStr`], returning <code>[Err]\([NotNulTerminatedError]\)</code> instead if the underlying buffer isn't `\0`-terminated.
+        /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
+        ///
+        /// `O(n)` to locate the terminal `\0`.
+        pub fn to_u32cstr(&self) -> Result<&U32CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U32CStr::from_slice_unchecked(units) }) }
+
+        /// Convert the buffer to a [`U32Str`].
+        ///
+        /// `O(n)` to locate the terminal `\0`.
+        pub fn to_u32str(&self) -> &U32Str { U32Str::from_slice(self.to_units()) }
+    }
+};
+
+impl<E: encoding::Infalliable, const N: usize> Default for CStrBuf<E, N> {
+    fn default() -> Self { Self { buffer: [bytemuck::Zeroable::zeroed(); N] } }
 }
 
-#[cfg(feature = "widestring")] impl<const N: usize> CStrBuf<u32, N> {
-    /// Attempt to convert the buffer to a [`U32CStr`], returning <code>[Err]\([NotNulTerminatedError]\)</code> instead if the underlying buffer isn't `\0`-terminated.
-    /// You might prefer [`to_string_lossy`](Self::to_string_lossy), which cannot fail, or [`to_str`](Self::to_str), which can fail due to invalid UTF8, but not due to missing `\0`s.
-    ///
-    /// `O(n)` to locate the terminal `\0`.
-    pub fn to_u32cstr(&self) -> Result<&U32CStr, NotNulTerminatedError> { self.to_units_with_nul().map(|units| unsafe { U32CStr::from_slice_unchecked(units) }) }
-
-    /// Convert the buffer to a [`U32Str`].
-    ///
-    /// `O(n)` to locate the terminal `\0`.
-    pub fn to_u32str(&self) -> &U32Str { U32Str::from_slice(self.to_units()) }
-}
-
-impl<U: Unit, const N: usize> Default for CStrBuf<U, N> {
-    fn default() -> Self { Self { buffer: U::zeroed() } }
-}
-
-impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result { private::Unit::debug(self.to_units(), f) }
+impl<E: encoding::Infalliable, const N: usize> Debug for CStrBuf<E, N> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { E::debug_fmt(self.to_units(), f) }
 }
 
 
 
 #[cfg(feature = "bytemuck")] mod _bytemuck {
     use super::*;
-    unsafe impl<U: Unit + bytemuck::Pod,      const N: usize> bytemuck::Pod         for CStrBuf<U, N> {}
-    unsafe impl<U: Unit + bytemuck::Zeroable, const N: usize> bytemuck::Zeroable    for CStrBuf<U, N> {}
+    unsafe impl<E: encoding::Infalliable, const N: usize> bytemuck::Pod         for CStrBuf<E, N> {}
+    unsafe impl<E: encoding::Infalliable, const N: usize> bytemuck::Zeroable    for CStrBuf<E, N> {}
 }
 
 
 
 #[test] fn abi_layout() {
-    assert_abi_compatible!([c_char;  1], CStrBuf<u8,  1>);
-    assert_abi_compatible!([c_char;  2], CStrBuf<u8,  2>);
-    assert_abi_compatible!([c_char;  3], CStrBuf<u8,  3>);
-    assert_abi_compatible!([c_char;  4], CStrBuf<u8,  4>);
-    assert_abi_compatible!([c_char;  6], CStrBuf<u8,  6>);
-    assert_abi_compatible!([c_char;  8], CStrBuf<u8,  8>);
-    assert_abi_compatible!([c_char; 12], CStrBuf<u8, 12>);
-    assert_abi_compatible!([c_char; 16], CStrBuf<u8, 16>);
-    assert_abi_compatible!([c_char; 24], CStrBuf<u8, 24>);
-    assert_abi_compatible!([c_char; 99], CStrBuf<u8, 99>);
+    use core::ffi::c_char;
+
+    assert_abi_compatible!([c_char;  1], CStrBuf<Utf8ish,  1>);
+    assert_abi_compatible!([c_char;  2], CStrBuf<Utf8ish,  2>);
+    assert_abi_compatible!([c_char;  3], CStrBuf<Utf8ish,  3>);
+    assert_abi_compatible!([c_char;  4], CStrBuf<Utf8ish,  4>);
+    assert_abi_compatible!([c_char;  6], CStrBuf<Utf8ish,  6>);
+    assert_abi_compatible!([c_char;  8], CStrBuf<Utf8ish,  8>);
+    assert_abi_compatible!([c_char; 12], CStrBuf<Utf8ish, 12>);
+    assert_abi_compatible!([c_char; 16], CStrBuf<Utf8ish, 16>);
+    assert_abi_compatible!([c_char; 24], CStrBuf<Utf8ish, 24>);
+    assert_abi_compatible!([c_char; 99], CStrBuf<Utf8ish, 99>);
 
     #[allow(non_camel_case_types)] type char16_t = u16; // could also be wchar_t on windows, unichar on iOS, etc.
-    assert_abi_compatible!([char16_t;  1], CStrBuf<char16_t,  1>);
-    assert_abi_compatible!([char16_t;  2], CStrBuf<char16_t,  2>);
-    assert_abi_compatible!([char16_t;  3], CStrBuf<char16_t,  3>);
-    assert_abi_compatible!([char16_t;  4], CStrBuf<char16_t,  4>);
-    assert_abi_compatible!([char16_t;  6], CStrBuf<char16_t,  6>);
-    assert_abi_compatible!([char16_t;  8], CStrBuf<char16_t,  8>);
-    assert_abi_compatible!([char16_t; 12], CStrBuf<char16_t, 12>);
-    assert_abi_compatible!([char16_t; 16], CStrBuf<char16_t, 16>);
-    assert_abi_compatible!([char16_t; 24], CStrBuf<char16_t, 24>);
-    assert_abi_compatible!([char16_t; 99], CStrBuf<char16_t, 99>);
+    assert_abi_compatible!([char16_t;  1], CStrBuf<Utf16ish,  1>);
+    assert_abi_compatible!([char16_t;  2], CStrBuf<Utf16ish,  2>);
+    assert_abi_compatible!([char16_t;  3], CStrBuf<Utf16ish,  3>);
+    assert_abi_compatible!([char16_t;  4], CStrBuf<Utf16ish,  4>);
+    assert_abi_compatible!([char16_t;  6], CStrBuf<Utf16ish,  6>);
+    assert_abi_compatible!([char16_t;  8], CStrBuf<Utf16ish,  8>);
+    assert_abi_compatible!([char16_t; 12], CStrBuf<Utf16ish, 12>);
+    assert_abi_compatible!([char16_t; 16], CStrBuf<Utf16ish, 16>);
+    assert_abi_compatible!([char16_t; 24], CStrBuf<Utf16ish, 24>);
+    assert_abi_compatible!([char16_t; 99], CStrBuf<Utf16ish, 99>);
 
     #[allow(non_camel_case_types)] type char32_t = u32; // could also be wchar_t on *nix
-    assert_abi_compatible!([char32_t;  1], CStrBuf<char32_t,  1>);
-    assert_abi_compatible!([char32_t;  2], CStrBuf<char32_t,  2>);
-    assert_abi_compatible!([char32_t;  3], CStrBuf<char32_t,  3>);
-    assert_abi_compatible!([char32_t;  4], CStrBuf<char32_t,  4>);
-    assert_abi_compatible!([char32_t;  6], CStrBuf<char32_t,  6>);
-    assert_abi_compatible!([char32_t;  8], CStrBuf<char32_t,  8>);
-    assert_abi_compatible!([char32_t; 12], CStrBuf<char32_t, 12>);
-    assert_abi_compatible!([char32_t; 16], CStrBuf<char32_t, 16>);
-    assert_abi_compatible!([char32_t; 24], CStrBuf<char32_t, 24>);
-    assert_abi_compatible!([char32_t; 99], CStrBuf<char32_t, 99>);
+    assert_abi_compatible!([char32_t;  1], CStrBuf<Utf32ish,  1>);
+    assert_abi_compatible!([char32_t;  2], CStrBuf<Utf32ish,  2>);
+    assert_abi_compatible!([char32_t;  3], CStrBuf<Utf32ish,  3>);
+    assert_abi_compatible!([char32_t;  4], CStrBuf<Utf32ish,  4>);
+    assert_abi_compatible!([char32_t;  6], CStrBuf<Utf32ish,  6>);
+    assert_abi_compatible!([char32_t;  8], CStrBuf<Utf32ish,  8>);
+    assert_abi_compatible!([char32_t; 12], CStrBuf<Utf32ish, 12>);
+    assert_abi_compatible!([char32_t; 16], CStrBuf<Utf32ish, 16>);
+    assert_abi_compatible!([char32_t; 24], CStrBuf<Utf32ish, 24>);
+    assert_abi_compatible!([char32_t; 99], CStrBuf<Utf32ish, 99>);
 }
 
 
 
 #[test] fn from8() {
-    type CB8 = CStrBuf<u8, 8>;
+    type CB8 = CStrBuf<Utf8ish, 8>;
     {
         assert_eq!(CB8::from_truncate(b"1234567890").to_bytes(), b"1234567");
     }
@@ -298,7 +298,7 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 }
 
 #[test] fn from16() {
-    type CB8 = CStrBuf<u16, 8>;
+    type CB8 = CStrBuf<Utf16ish, 8>;
     let u12345678910 = [1u16, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     {
         assert_eq!(CB8::from_truncate(&u12345678910).to_units(), &u12345678910[..7]);
@@ -321,7 +321,7 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 
 
 #[test] fn set8() {
-    type CB8 = CStrBuf<u8, 8>;
+    type CB8 = CStrBuf<Utf8ish, 8>;
     let reference = CB8::from_truncate(b"ref");
     {
         let mut cb = reference;
@@ -358,7 +358,7 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 }
 
 #[test] fn set16() {
-    type CB8 = CStrBuf<u16, 8>;
+    type CB8 = CStrBuf<Utf16ish, 8>;
     let u12345678910 = [1u16, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     let u_ref = [b'r' as u16, b'e' as u16, b'f' as u16];
     let reference = CB8::from_truncate(&u_ref);
@@ -400,6 +400,7 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 
 #[allow(overflowing_literals)]
 #[test] fn struct_interop_narrow() {
+    use core::ffi::c_char;
     use core::mem::*;
 
     #[repr(C)] struct C {
@@ -424,12 +425,12 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 
     assert_abi_compatible!(R, C);
     #[repr(C)] struct R {
-        empty:          CStrBuf<u8, 16>,
-        empty2:         CStrBuf<u8, 16>,
-        empty3:         CStrBuf<u8, 16>,
-        example:        CStrBuf<u8, 16>,
-        full:           CStrBuf<u8, 16>,
-        not_unicode:    CStrBuf<u8, 16>,
+        empty:          CStrBuf<Utf8ish, 16>,
+        empty2:         CStrBuf<Utf8ish, 16>,
+        empty3:         CStrBuf<Utf8ish, 16>,
+        example:        CStrBuf<Utf8ish, 16>,
+        full:           CStrBuf<Utf8ish, 16>,
+        not_unicode:    CStrBuf<Utf8ish, 16>,
     }
     let r : &mut R = unsafe { transmute(&mut c) };
     r.example.try_set(b"example").unwrap();
@@ -463,14 +464,12 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.full           .to_bytes_with_nul(), Err(NotNulTerminatedError(())));
     assert_eq!(r.not_unicode    .to_bytes_with_nul(), Ok(&b"\xFF\xFF\0"[..]));
 
-    #[cfg(feature = "std")] {
-        assert_eq!(r.empty          .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
-        assert_eq!(r.empty2         .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
-        assert_eq!(r.empty3         .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
-        assert_eq!(r.example        .to_cstr(), Ok(CStr::from_bytes_with_nul(b"example\0").unwrap()));
-        assert_eq!(r.full           .to_cstr(), Err(NotNulTerminatedError(())));
-        assert_eq!(r.not_unicode    .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\xFF\xFF\0").unwrap()));
-    }
+    assert_eq!(r.empty          .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
+    assert_eq!(r.empty2         .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
+    assert_eq!(r.empty3         .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\0").unwrap()));
+    assert_eq!(r.example        .to_cstr(), Ok(CStr::from_bytes_with_nul(b"example\0").unwrap()));
+    assert_eq!(r.full           .to_cstr(), Err(NotNulTerminatedError(())));
+    assert_eq!(r.not_unicode    .to_cstr(), Ok(CStr::from_bytes_with_nul(b"\xFF\xFF\0").unwrap()));
 
     assert_eq!(r.empty          .to_str(), Ok(""));
     assert_eq!(r.empty2         .to_str(), Ok(""));
@@ -479,7 +478,7 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.full           .to_str(), Ok("ffffffffffffffff"));
     assert_eq!(r.not_unicode    .to_str().is_err(), true);
 
-    #[cfg(feature = "std")] {
+    #[cfg(feature = "alloc")] {
         assert_eq!(r.empty          .to_string_lossy(), "");
         assert_eq!(r.empty2         .to_string_lossy(), "");
         assert_eq!(r.empty3         .to_string_lossy(), "");
@@ -495,7 +494,8 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.full           .validate().is_err(), true);
     assert_eq!(r.not_unicode    .validate().is_err(), false);
 
-    #[cfg(feature = "std")] {
+    #[cfg(feature = "alloc")] {
+        use alloc::format;
         assert_eq!(format!("{:?}", r.empty          ), "\"\"" );
         assert_eq!(format!("{:?}", r.empty2         ), "\"\"" );
         assert_eq!(format!("{:?}", r.empty3         ), "\"\"" );
@@ -564,12 +564,12 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
 
     assert_abi_compatible!(R, C);
     #[repr(C)] struct R {
-        empty:          CStrBuf<u16, 16>,
-        empty2:         CStrBuf<u16, 16>,
-        empty3:         CStrBuf<u16, 16>,
-        example:        CStrBuf<u16, 16>,
-        full:           CStrBuf<u16, 16>,
-        not_unicode:    CStrBuf<u16, 16>,
+        empty:          CStrBuf<Utf16ish, 16>,
+        empty2:         CStrBuf<Utf16ish, 16>,
+        empty3:         CStrBuf<Utf16ish, 16>,
+        example:        CStrBuf<Utf16ish, 16>,
+        full:           CStrBuf<Utf16ish, 16>,
+        not_unicode:    CStrBuf<Utf16ish, 16>,
     }
     let r : &mut R = unsafe { transmute(&mut c) };
     r.example.try_set(u!(b"example")).unwrap();
@@ -604,6 +604,8 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.not_unicode    .to_units_with_nul(), Ok(&[0xDC00, 0xDC00, 0][..]));
 
     #[cfg(feature = "widestring")] {
+        use widestring::*;
+
         assert_eq!(r.empty          .to_u16cstr(), Ok(U16CStr::from_slice(u!(b"\0")).unwrap()));
         assert_eq!(r.empty2         .to_u16cstr(), Ok(U16CStr::from_slice(u!(b"\0")).unwrap()));
         assert_eq!(r.empty3         .to_u16cstr(), Ok(U16CStr::from_slice(u!(b"\0")).unwrap()));
@@ -619,7 +621,7 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
         assert_eq!(r.not_unicode    .to_u16str(), U16Str::from_slice(&[0xDC00, 0xDC00]));
     }
 
-    #[cfg(feature = "std")] {
+    #[cfg(feature = "alloc")] {
         assert_eq!(r.empty          .to_string_lossy(), "");
         assert_eq!(r.empty2         .to_string_lossy(), "");
         assert_eq!(r.empty3         .to_string_lossy(), "");
@@ -635,7 +637,8 @@ impl<U: Unit, const N: usize> Debug for CStrBuf<U, N> {
     assert_eq!(r.full           .validate().is_err(), true);
     assert_eq!(r.not_unicode    .validate().is_err(), false);
 
-    #[cfg(feature = "std")] {
+    #[cfg(feature = "alloc")] {
+        use alloc::format;
         assert_eq!(format!("{:?}", r.empty          ), "\"\"" );
         assert_eq!(format!("{:?}", r.empty2         ), "\"\"" );
         assert_eq!(format!("{:?}", r.empty3         ), "\"\"" );
