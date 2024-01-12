@@ -15,6 +15,22 @@
         <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
     </Type>
+    <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::CP437&gt;">
+        <DisplayString>{(char *)ptr,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::CP437&gt;">
+        <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::WindowsCurrentAnsiCodePage&gt;">
+        <DisplayString>{(char *)ptr,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::WindowsCurrentAnsiCodePage&gt;">
+        <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
+    </Type>
 
 
 
