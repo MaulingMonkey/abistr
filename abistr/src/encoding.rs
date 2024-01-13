@@ -87,6 +87,14 @@ pub unsafe trait FromUnitsInfalliable<U: crate::Unit> : Encoding {
     }
 }
 
+unsafe impl<E: Infalliable> FromUnitsInfalliable<E::Unit> for E { fn from_units_infalliable(units: &[E::Unit]) -> &[E::Unit] { units } }
+unsafe impl FromUnitsInfalliable<i8  > for Unknown8             { fn from_units_infalliable(units: &[i8     ]) -> &[u8     ] { bytemuck::must_cast_slice(units) } }
+unsafe impl FromUnitsInfalliable<char> for Unknown32            { fn from_units_infalliable(units: &[char   ]) -> &[u32    ] { bytemuck::must_cast_slice(units) } }
+unsafe impl FromUnitsInfalliable<i8  > for CP437                { fn from_units_infalliable(units: &[i8     ]) -> &[u8     ] { bytemuck::must_cast_slice(units) } }
+unsafe impl FromUnitsInfalliable<i8  > for Utf8ish              { fn from_units_infalliable(units: &[i8     ]) -> &[u8     ] { bytemuck::must_cast_slice(units) } }
+unsafe impl FromUnitsInfalliable<char> for Utf32                { fn from_units_infalliable(units: &[char   ]) -> &[char   ] { units } }
+unsafe impl FromUnitsInfalliable<char> for Utf32ish             { fn from_units_infalliable(units: &[char   ]) -> &[u32    ] { bytemuck::must_cast_slice(units) } }
+
 
 
 /// Create <code>[Encoding]::[Unit](Encoding::Unit)</code>s from [`Unit`]s.
@@ -182,8 +190,6 @@ impl Encoding for Unknown8 {
     type Unit = u8;
     fn debug_fmt(units: &[u8], fmt: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(units, fmt) }
 }
-unsafe impl FromUnitsInfalliable<i8> for Unknown8 { fn from_units_infalliable(units: &[i8]) -> &[u8] { bytemuck::must_cast_slice(units) } }
-unsafe impl FromUnitsInfalliable<u8> for Unknown8 { fn from_units_infalliable(units: &[u8]) -> &[u8] { units } }
 
 /// An unknown 16-bit encoding.
 #[derive(Clone, Copy)] pub struct Unknown16;
@@ -191,7 +197,6 @@ impl Encoding for Unknown16 {
     type Unit = u16;
     fn debug_fmt(units: &[u16], fmt: &mut Formatter) -> fmt::Result { crate::fmt::c16_units(units, fmt) }
 }
-unsafe impl FromUnitsInfalliable<u16> for Unknown16 { fn from_units_infalliable(units: &[u16]) -> &[u16] { units } }
 
 /// An unknown 32-bit encoding.
 #[derive(Clone, Copy)] pub struct Unknown32;
@@ -199,8 +204,6 @@ impl Encoding for Unknown32 {
     type Unit = u32;
     fn debug_fmt(units: &[u32], fmt: &mut Formatter) -> fmt::Result { crate::fmt::c32_units(units, fmt) }
 }
-unsafe impl FromUnitsInfalliable<u32 > for Unknown32 { fn from_units_infalliable(units: &[u32 ]) -> &[u32] { units } }
-unsafe impl FromUnitsInfalliable<char> for Unknown32 { fn from_units_infalliable(units: &[char]) -> &[u32] { bytemuck::must_cast_slice(units) } }
 
 
 
@@ -210,8 +213,6 @@ impl Encoding for CP437 {
     type Unit = u8;
     fn debug_fmt(units: &[u8], fmt: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(units, fmt) }
 }
-unsafe impl FromUnitsInfalliable<i8> for CP437 { fn from_units_infalliable(units: &[i8]) -> &[u8] { bytemuck::must_cast_slice(units) } }
-unsafe impl FromUnitsInfalliable<u8> for CP437 { fn from_units_infalliable(units: &[u8]) -> &[u8] { units } }
 impl FixedToCharInfalliable for CP437 {
     fn to_char(unit: u8) -> char {
         // https://en.wikipedia.org/wiki/Code_page_437#Character_set
@@ -284,8 +285,6 @@ impl ToChars for Utf8ish {
     fn next_char(units: &mut &[Self::Unit]) -> Result<char, ()> { Ok(Utf8::next_char(units).unwrap_or(char::REPLACEMENT_CHARACTER)) }
     #[cfg(feature = "alloc")] fn to_string_lossy(units: &[Self::Unit]) -> alloc::borrow::Cow<str> { alloc::string::String::from_utf8_lossy(units) }
 }
-unsafe impl FromUnitsInfalliable<i8> for Utf8ish { fn from_units_infalliable(units: &[i8]) -> &[u8] { bytemuck::must_cast_slice(units) } }
-unsafe impl FromUnitsInfalliable<u8> for Utf8ish { fn from_units_infalliable(units: &[u8]) -> &[u8] { units } }
 
 impl From<Utf8 > for Utf8ish  { fn from(_: Utf8 ) -> Self { Self } }
 
@@ -338,7 +337,6 @@ impl ToChars for Utf16ish {
     fn next_char(units: &mut &[Self::Unit]) -> Result<char, ()> { Ok(Utf16::next_char(units).unwrap_or(char::REPLACEMENT_CHARACTER)) }
     #[cfg(feature = "alloc")] fn to_string_lossy(units: &[Self::Unit]) -> alloc::borrow::Cow<str> { alloc::string::String::from_utf16_lossy(units).into() }
 }
-unsafe impl FromUnitsInfalliable<u16> for Utf16ish { fn from_units_infalliable(units: &[u16]) -> &[u16] { units } }
 impl From<Utf16> for Utf16ish { fn from(_: Utf16) -> Self { Self } }
 
 /// Valid [UTF-32](https://en.wikipedia.org/wiki/UTF-32).
@@ -351,7 +349,6 @@ impl ToChars for Utf32 {
     fn next_char(units: &mut &[Self::Unit]) -> Result<char, ()> { take_first(units).ok_or(()).copied() }
     #[cfg(feature = "alloc")] fn to_string_lossy(units: &[Self::Unit]) -> alloc::borrow::Cow<str> { alloc::string::String::from_iter(units.iter().copied()).into() }
 }
-unsafe impl FromUnitsInfalliable<char> for Utf32 { fn from_units_infalliable(units: &[char]) -> &[char] { units } }
 unsafe impl FromUnits<u32> for Utf32 {
     fn from_units(units: &[u32]) -> Result<&[Self::Unit], (&[Self::Unit], &[u32])> {
         let (ok, err) = must_cast_slice_checked_partial(units);
@@ -369,8 +366,6 @@ impl ToChars for Utf32ish {
     fn next_char(units: &mut &[Self::Unit]) -> Result<char, ()> { char::try_from(*take_first(units).ok_or(())?).map_err(|_| {}) }
     #[cfg(feature = "alloc")] fn to_string_lossy(units: &[Self::Unit]) -> alloc::borrow::Cow<str> { alloc::string::String::from_iter(units.iter().copied().map(|u| char::from_u32(u).unwrap_or(char::REPLACEMENT_CHARACTER))).into() }
 }
-unsafe impl FromUnitsInfalliable<u32 > for Utf32ish { fn from_units_infalliable(units: &[u32 ]) -> &[u32] { units } }
-unsafe impl FromUnitsInfalliable<char> for Utf32ish { fn from_units_infalliable(units: &[char]) -> &[u32] { bytemuck::must_cast_slice(units) } }
 impl From<Utf32> for Utf32ish { fn from(_: Utf32) -> Self { Self } }
 
 
