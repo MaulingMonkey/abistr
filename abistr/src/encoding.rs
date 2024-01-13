@@ -298,31 +298,23 @@ impl Encoding for Utf16 {
 }
 impl ToChars for Utf16 {
     fn next_char(units: &mut &[Self::Unit]) -> Result<char, ()> {
-        let first = *take_first(units).ok_or(())?;
+        let high = *take_first(units).ok_or(())?;
 
-        const SURROGATE_SIGNAL_MASK : u16 = 0b11111100_00000000;
-        const SURROGATE_VALUE_MASK  : u16 = 0b00000011_00000000;
-        const SURROGATE_HIGH        : u16 = 0b110110_0000000000;
-        const SURROGATE_LOW         : u16 = 0b110111_0000000000;
+        const SURROGATE_SIGNAL_MASK     : u16 = 0b11111100_00000000;
+        const SURROGATE_VALUE_MASK      : u16 = 0b00000011_00000000;
+        const SURROGATE_HIGH_LEADING    : u16 = 0b110110_0000000000;
+        const SURROGATE_LOW_TRAILING    : u16 = 0b110111_0000000000;
 
-        let hi;
-        let lo;
-        let before_take = *units;
-        match first & SURROGATE_SIGNAL_MASK {
-            SURROGATE_LOW => {
-                lo = first; hi = *take_first(units).ok_or(())?;
-                if hi & SURROGATE_SIGNAL_MASK != SURROGATE_HIGH { *units = before_take; return Err(()) }
+        match high & SURROGATE_SIGNAL_MASK {
+            SURROGATE_HIGH_LEADING => {
+                let before_take = *units;
+                let low = *take_first(units).ok_or(())?;
+                if low & SURROGATE_SIGNAL_MASK != SURROGATE_LOW_TRAILING { *units = before_take; return Err(()) }
+                char::from_u32(((high & SURROGATE_VALUE_MASK) << 10 | (low & SURROGATE_VALUE_MASK)).into()).ok_or(())
             },
-            SURROGATE_HIGH => {
-                hi = first; lo = *take_first(units).ok_or(())?;
-                if lo & SURROGATE_SIGNAL_MASK != SURROGATE_LOW { *units = before_take; return Err(()) }
-            },
-            _not_a_surrogate => {
-                return char::from_u32(first.into()).ok_or(());
-            }
-        };
-
-        char::from_u32(((hi & SURROGATE_VALUE_MASK) << 10 | (lo & SURROGATE_VALUE_MASK)).into()).ok_or(())
+            SURROGATE_LOW_TRAILING  => Err(()),
+            _not_a_surrogate        => char::from_u32(high.into()).ok_or(()),
+        }
     }
 
     #[cfg(feature = "alloc")] fn to_string_lossy(units: &[Self::Unit]) -> alloc::borrow::Cow<str> { alloc::string::String::from_utf16_lossy(units).into() }
