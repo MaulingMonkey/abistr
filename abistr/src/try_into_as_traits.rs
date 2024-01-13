@@ -391,7 +391,7 @@ impl<E: Encoding, T: AsOptCStr<E>> TryIntoAsOptCStr<E> for T {
 #[test] fn basic_usage() {
     fn f(_: impl TryIntoAsCStr<Unknown8>) {}
     #[cfg(feature = "alloc")] f("test");
-    f(cstr8!("test"));
+    f(unknown8!("test"));
     #[cfg(feature = "alloc")] f(alloc::string::String::from("test"));
     #[cfg(feature = "alloc")] f(alloc::ffi::CString::new("test").unwrap());
     f(core::ffi::CStr::from_bytes_with_nul(b"test\0").unwrap());
@@ -401,20 +401,20 @@ impl<E: Encoding, T: AsOptCStr<E>> TryIntoAsOptCStr<E> for T {
     fn o(_: impl TryIntoAsOptCStr<Unknown8>) {}
     o(());
     #[cfg(feature = "alloc")] o("test");
-    o(cstr8!("test"));
-    o(CStrPtr::from(cstr8!("test")));
+    o(unknown8!("test"));
+    o(CStrPtr::from(unknown8!("test")));
     o(core::ffi::CStr::from_bytes_with_nul(b"test\0").unwrap());
     #[cfg(feature = "alloc")] o(alloc::string::String::from("test"));
     #[cfg(feature = "alloc")] o(alloc::ffi::CString::new("test").unwrap());
     f(core::ffi::CStr::from_bytes_with_nul(b"test\0").unwrap());
 
     #[cfg(feature = "alloc")] o(Some("test"));
-    o(Some(cstr8!("test")));
+    o(Some(unknown8!("test")));
     #[cfg(feature = "alloc")] o(Some(alloc::string::String::from("test")));
     #[cfg(feature = "alloc")] o(Some(alloc::ffi::CString::new("test").unwrap()));
     o(Some(core::ffi::CStr::from_bytes_with_nul(b"test\0").unwrap()));
 
-    o(CStrPtr::from(cstr8!("test")));
+    o(CStrPtr::from(unknown8!("test")));
     o(CStrPtr::<Unknown8>::NULL);
     o(());
 }
@@ -436,13 +436,13 @@ impl<E: Encoding, T: AsOptCStr<E>> TryIntoAsOptCStr<E> for T {
     /// ```no_run
     /// use abistr::*;
     /// fn o(_: impl TryIntoAsOptCStr<encoding::Unknown8>) {}
-    /// o(CStrPtr::from(cstr8!("test")));
+    /// o(CStrPtr::from(unknown8!("test")));
     /// ```
     ///
     /// ```compile_fail
     /// use abistr::*;
     /// fn f(_: impl TryIntoAsCStr<encoding::Unknown8>) {}
-    /// f(CStrPtr::from(cstr8!("test")));
+    /// f(CStrPtr::from(unknown8!("test")));
     /// ```
     struct CStrPtrTest;
 

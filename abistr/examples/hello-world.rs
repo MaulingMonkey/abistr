@@ -20,7 +20,7 @@ fn main() {
         dbg!(ConsoleOutput.to_ansi_code_page());
 
         if let Ok(conout) = get_std_handle(STD_OUTPUT_HANDLE) {
-            let _ = write_console_a(conout, cstr8!("Hello, world!").to_units(), ());
+            let _ = write_console_a(conout, utf8!("Hello, world!").to_units(), ());
         }
         //let _ = message_box_a((), cstr8!("te\\xt"), cstr8!("capt\\ion"), 0);
     }
