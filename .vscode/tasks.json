@@ -19,6 +19,16 @@
 
         // abistr
         {
+            "label":            "cargo build --package abistr --example hello-world",
+            "command":          "cargo build --package abistr --example hello-world",
+            "presentation":     { "clear": true, "panel": "shared", "reveal": "always" },
+        },
+        {
+            "label":            "cargo build --package abistr --example hello-world --release",
+            "command":          "cargo build --package abistr --example hello-world --release",
+            "presentation":     { "clear": true, "panel": "shared", "reveal": "always" },
+        },
+        {
             "label":            "cargo build --package abistr --example natvis-playground",
             "command":          "cargo build --package abistr --example natvis-playground",
             "presentation":     { "clear": true, "panel": "shared", "reveal": "always" },

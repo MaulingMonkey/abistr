@@ -31,15 +31,54 @@
         <DisplayString>{(char *)buffer,s}</DisplayString>
         <Expand><ExpandedItem>buffer,s</ExpandedItem></Expand>
     </Type>
-    <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::WindowsCurrentAnsiCodePage&gt;">
+
+
+
+    <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::windows::System&gt;">
         <DisplayString>{(char *)ptr,s}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr,s</ExpandedItem></Expand>
     </Type>
-    <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::WindowsCurrentAnsiCodePage&gt;">
+    <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::windows::System&gt;">
         <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
     </Type>
-    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::WindowsCurrentAnsiCodePage, *&gt;">
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::windows::System, *&gt;">
+        <DisplayString>{(char *)buffer,s}</DisplayString>
+        <Expand><ExpandedItem>buffer,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::windows::CurrentThread&gt;">
+        <DisplayString>{(char *)ptr,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::windows::CurrentThread&gt;">
+        <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::windows::CurrentThread, *&gt;">
+        <DisplayString>{(char *)buffer,s}</DisplayString>
+        <Expand><ExpandedItem>buffer,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::windows::ConsoleInput&gt;">
+        <DisplayString>{(char *)ptr,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::windows::ConsoleInput&gt;">
+        <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::windows::ConsoleInput, *&gt;">
+        <DisplayString>{(char *)buffer,s}</DisplayString>
+        <Expand><ExpandedItem>buffer,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::windows::ConsoleOutput&gt;">
+        <DisplayString>{(char *)ptr,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::windows::ConsoleOutput&gt;">
+        <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
+        <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::windows::ConsoleOutput, *&gt;">
         <DisplayString>{(char *)buffer,s}</DisplayString>
         <Expand><ExpandedItem>buffer,s</ExpandedItem></Expand>
     </Type>

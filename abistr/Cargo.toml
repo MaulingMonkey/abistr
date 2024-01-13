@@ -29,5 +29,5 @@ all-features    = true
 
 [dependencies]
 abistr-macros   = { path = "../abistr-macros", version = "0.0.0-git" }
-bytemuck        = { version = "1.14", features = ["must_cast"] }
+bytemuck        = { version = "1.14", features = ["derive", "must_cast"] }
 widestring      = { package = "widestring", version = "1", optional = true }

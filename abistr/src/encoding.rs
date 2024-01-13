@@ -1,6 +1,8 @@
-//! [`CP437`], [`Unknown8`], [`Unknown16`], [`Unknown32`],
-//! [`Utf8`], [`Utf8ish`], [`Utf16`], [`Utf16ish`], [`Utf32`], [`Utf32ish`],
-//! [`WindowsCurrentAnsiCodePage`]
+//! [`Encoding`]s:
+//! <code>[windows]::{[System](windows::System), [CurrentThread](windows::CurrentThread), [ConsoleInput](windows::ConsoleInput), [ConsoleOutput](windows::ConsoleOutput)}</code> <br>
+//! [`CP437`], [`Unknown8`], [`Unknown16`], [`Unknown32`], [`Utf8`], [`Utf8ish`], [`Utf16`], [`Utf16ish`], [`Utf32`], [`Utf32ish`]<br>
+
+#[cfg(windows)] pub mod windows;
 
 use bytemuck::{CheckedBitPattern, NoUninit};
 
@@ -367,49 +369,6 @@ impl ToChars for Utf32ish {
     #[cfg(feature = "alloc")] fn to_string_lossy(units: &[Self::Unit]) -> alloc::borrow::Cow<str> { alloc::string::String::from_iter(units.iter().copied().map(|u| char::from_u32(u).unwrap_or(char::REPLACEMENT_CHARACTER))).into() }
 }
 impl From<Utf32> for Utf32ish { fn from(_: Utf32) -> Self { Self } }
-
-
-
-/// "Narrow" encoding of some sort &mdash; *N.B. this might not be a strict superset of 7-bit US-ASCII.*
-///
-/// For example, this could be:
-/// *   [Code page 437](https://en.wikipedia.org/wiki/Code_page_437), a fixed-length encoding with symbols for `0x00..0x20` instead of control codes.<br>
-///     Default for U.S. English / North America?
-/// *   [Shift JIS](https://en.wikipedia.org/wiki/Shift_JIS), a variable-length encoding that replaces `|` with `¥` for `0x5C` and `~` with `‾` for `0x7E`.<br>
-///     Also uses the low-ASCII range in continuation bytes.
-/// *   [Windows-1251](https://en.wikipedia.org/wiki/Windows-1251), a common default in Windows for Cyrillic languages such as Russian.
-/// *   [Windows-1252](https://en.wikipedia.org/wiki/Windows-1252), a common default in Windows for English and other Romance/Germanic languages.
-/// *   [US-ASCII](https://en.wikipedia.org/wiki/ASCII), a 7-bit fixed-length encoding.
-/// *   [UTF-8](https://en.wikipedia.org/wiki/UTF-8), a variable-length unicode encoding.
-/// *   [UTF-7](https://en.wikipedia.org/wiki/UTF-7), a non-standard variable-length email-safe unicode encoding.
-/// *   One of [hundreds of other codepages](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)
-///
-/// This is *usually* a system-wide setting - however, applications can now [opt-in to process-specific UTF-8 via manifest](https://learn.microsoft.com/en-us/windows/apps/design/globalizing/use-utf8-code-page#set-a-process-code-page-to-utf-8).<br>
-/// While this might *sound* nice to an author of UTF-8 laden rust code:
-/// *   Libraries cannot depend on this, as it is an application-wide setting.
-/// *   *Applications* cannot depend on this either, as older windows might ignore the manifest settings.
-/// *   It risks [Mojibake](https://en.wikipedia.org/wiki/Mojibake) &mdash; Microsoft themselves point out this manifest setting [isn't supported by GDI](https://learn.microsoft.com/en-us/windows/apps/design/globalizing/use-utf8-code-page#set-a-process-code-page-to-utf-8).
-/// *   Windows NT is ≈UTF-16 internally anyways &mdash; so this won't let you avoid conversion, merely shift where conversion occurs.
-///
-/// There are a few **wide** "narrow" encodings that I don't quite know what to make of &mdash; hopefully these are never process locales:
-///
-/// | Identifier | .NET Name | Additional information |
-/// | -----------| ----------| -----------------------|
-/// | ...   | ...           | ...
-/// | 1200  | utf-16        | Unicode UTF-16, little endian byte order (BMP of ISO 10646); available only to managed applications
-/// | 1201  | unicodeFFFE   | Unicode UTF-16, big endian byte order; available only to managed applications
-/// | ...   | ...           | ...
-/// | 12000 | utf-32        | Unicode UTF-32, little endian byte order; available only to managed applications
-/// | 12001 | utf-32BE      | Unicode UTF-32, big endian byte order; available only to managed applications
-/// | ...   | ...           | ...
-///
-/// (Source: [Code Page Identifiers](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers))
-///
-#[cfg(windows)] #[derive(Clone, Copy)] pub struct WindowsCurrentAnsiCodePage;
-#[cfg(windows)] impl Encoding for WindowsCurrentAnsiCodePage {
-    type Unit = u8;
-    fn debug_fmt(units: &[u8], fmt: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(units, fmt) }
-}
 
 
 

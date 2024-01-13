@@ -226,13 +226,8 @@ impl<E: encoding::Infalliable, const N: usize> Debug for CStrBuf<E, N> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result { E::debug_fmt(self.to_units(), f) }
 }
 
-
-
-#[cfg(feature = "bytemuck")] mod _bytemuck {
-    use super::*;
-    unsafe impl<E: encoding::Infalliable, const N: usize> bytemuck::Pod         for CStrBuf<E, N> {}
-    unsafe impl<E: encoding::Infalliable, const N: usize> bytemuck::Zeroable    for CStrBuf<E, N> {}
-}
+unsafe impl<E: encoding::Infalliable, const N: usize> bytemuck::Pod         for CStrBuf<E, N> {}
+unsafe impl<E: encoding::Infalliable, const N: usize> bytemuck::Zeroable    for CStrBuf<E, N> {}
 
 
 
