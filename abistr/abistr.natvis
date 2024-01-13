@@ -15,6 +15,10 @@
         <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
     </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::Unknown8, *&gt;">
+        <DisplayString>{(char *)buffer,s}</DisplayString>
+        <Expand><ExpandedItem>buffer,s</ExpandedItem></Expand>
+    </Type>
     <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::CP437&gt;">
         <DisplayString>{(char *)ptr,s}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr,s</ExpandedItem></Expand>
@@ -23,6 +27,10 @@
         <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
     </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::CP437, *&gt;">
+        <DisplayString>{(char *)buffer,s}</DisplayString>
+        <Expand><ExpandedItem>buffer,s</ExpandedItem></Expand>
+    </Type>
     <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::WindowsCurrentAnsiCodePage&gt;">
         <DisplayString>{(char *)ptr,s}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr,s</ExpandedItem></Expand>
@@ -30,6 +38,10 @@
     <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::WindowsCurrentAnsiCodePage&gt;">
         <DisplayString>{(char *)ptr.pointer,s}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr.pointer,s</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::WindowsCurrentAnsiCodePage, *&gt;">
+        <DisplayString>{(char *)buffer,s}</DisplayString>
+        <Expand><ExpandedItem>buffer,s</ExpandedItem></Expand>
     </Type>
 
 
@@ -42,6 +54,10 @@
         <DisplayString>{(char *)ptr.pointer,s8}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr.pointer,s8</ExpandedItem></Expand>
     </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::Utf8ish, *&gt;">
+        <DisplayString>{(char *)buffer,s8}</DisplayString>
+        <Expand><ExpandedItem>buffer,s8</ExpandedItem></Expand>
+    </Type>
     <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::Utf8&gt;">
         <DisplayString>{(char *)ptr,s8}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr,s8</ExpandedItem></Expand>
@@ -49,6 +65,10 @@
     <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::Utf8&gt;">
         <DisplayString>{(char *)ptr.pointer,s8}</DisplayString>
         <Expand><ExpandedItem>(char *)ptr.pointer,s8</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::Utf8, *&gt;">
+        <DisplayString>{(char *)buffer,s8}</DisplayString>
+        <Expand><ExpandedItem>buffer,s8</ExpandedItem></Expand>
     </Type>
 
 
@@ -61,6 +81,10 @@
         <DisplayString>{ptr.pointer,su}</DisplayString>
         <Expand><ExpandedItem>ptr.pointer,su</ExpandedItem></Expand>
     </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::Unknown16, *&gt;">
+        <DisplayString>{(char *)buffer,su}</DisplayString>
+        <Expand><ExpandedItem>buffer,su</ExpandedItem></Expand>
+    </Type>
     <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::Utf16ish&gt;">
         <DisplayString>{ptr,su}</DisplayString>
         <Expand><ExpandedItem>ptr,su</ExpandedItem></Expand>
@@ -69,6 +93,10 @@
         <DisplayString>{ptr.pointer,su}</DisplayString>
         <Expand><ExpandedItem>ptr.pointer,su</ExpandedItem></Expand>
     </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::Utf16ish, *&gt;">
+        <DisplayString>{(char *)buffer,su}</DisplayString>
+        <Expand><ExpandedItem>buffer,su</ExpandedItem></Expand>
+    </Type>
     <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::Utf16&gt;">
         <DisplayString>{ptr,su}</DisplayString>
         <Expand><ExpandedItem>ptr,su</ExpandedItem></Expand>
@@ -76,6 +104,10 @@
     <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::Utf16&gt;">
         <DisplayString>{ptr.pointer,su}</DisplayString>
         <Expand><ExpandedItem>ptr.pointer,su</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::Utf16, *&gt;">
+        <DisplayString>{(char *)buffer,su}</DisplayString>
+        <Expand><ExpandedItem>buffer,su</ExpandedItem></Expand>
     </Type>
 
 
@@ -88,9 +120,17 @@
         <DisplayString>{ptr.pointer,s32}</DisplayString>
         <Expand><ExpandedItem>ptr.pointer,s32</ExpandedItem></Expand>
     </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::Unknown32, *&gt;">
+        <DisplayString>{(char *)buffer,s32}</DisplayString>
+        <Expand><ExpandedItem>buffer,s32</ExpandedItem></Expand>
+    </Type>
     <Type Name="abistr::pointers::CStrPtr&lt;abistr::encoding::Utf32ish&gt;">
         <DisplayString>{ptr,s32}</DisplayString>
         <Expand><ExpandedItem>ptr,s32</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::Utf32ish, *&gt;">
+        <DisplayString>{(char *)buffer,s32}</DisplayString>
+        <Expand><ExpandedItem>buffer,s32</ExpandedItem></Expand>
     </Type>
     <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::Utf32ish&gt;">
         <DisplayString>{ptr.pointer,s32}</DisplayString>
@@ -103,5 +143,9 @@
     <Type Name="abistr::pointers::CStrNonNull&lt;abistr::encoding::Utf32&gt;">
         <DisplayString>{ptr.pointer,s32}</DisplayString>
         <Expand><ExpandedItem>ptr.pointer,s32</ExpandedItem></Expand>
+    </Type>
+    <Type Name="abistr::buffers::CStrBuf&lt;abistr::encoding::Utf32, *&gt;">
+        <DisplayString>{(char *)buffer,s32}</DisplayString>
+        <Expand><ExpandedItem>buffer,s32</ExpandedItem></Expand>
     </Type>
 </AutoVisualizer>

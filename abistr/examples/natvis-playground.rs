@@ -25,6 +25,14 @@ fn main() {
     let ptr_unk16 = CStrPtr::from(nn_unk16);
     let ptr_unk32 = CStrPtr::from(nn_unk32);
 
+    let buf_utf8ish  = CStrBuf::<encoding::Utf8ish,  16>::from_truncate(nn_utf8ish.to_units());
+    let buf_utf16ish = CStrBuf::<encoding::Utf16ish, 16>::from_truncate(nn_utf16ish.to_units());
+    let buf_utf32ish = CStrBuf::<encoding::Utf32ish, 16>::from_truncate(nn_utf32ish.to_units());
+
+    let buf_unk8  = CStrBuf::<encoding::Unknown8,  16>::from_truncate(nn_unk8.to_units());
+    let buf_unk16 = CStrBuf::<encoding::Unknown16, 16>::from_truncate(nn_unk16.to_units());
+    let buf_unk32 = CStrBuf::<encoding::Unknown32, 16>::from_truncate(nn_unk32.to_units());
+
     dbg!((
         nn_utf8, nn_utf16, nn_utf32,
         ptr_utf8, ptr_utf16, ptr_utf32,
@@ -32,9 +40,11 @@ fn main() {
     dbg!((
         nn_utf8ish, nn_utf16ish, nn_utf32ish,
         ptr_utf8ish, ptr_utf16ish, ptr_utf32ish,
+        buf_utf8ish, buf_utf16ish, buf_utf32ish,
     ));
     dbg!((
         nn_unk8, nn_unk16, nn_unk32,
         ptr_unk8, ptr_unk16, ptr_unk32,
+        buf_unk8, buf_unk16, buf_unk32,
     ));
 }
