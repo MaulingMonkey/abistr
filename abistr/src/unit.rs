@@ -61,9 +61,9 @@ pub(crate) mod private {
 
 pub(crate) unsafe fn strlen<U: Unit>(mut str: *const U) -> usize {
     let mut n = 0;
-    loop {
-        if unsafe { *str } == U::NUL { return n; }
+    while unsafe { *str } != U::NUL {
         n += 1;
         str = unsafe { str.offset(1) };
     }
+    n
 }
