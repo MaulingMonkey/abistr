@@ -80,14 +80,13 @@
 
 #[macro_use] mod macros;
 
-mod as_traits;                          pub use as_traits::*;
 mod buffers;                            pub use buffers::*;
+mod convert;                            pub use convert::*;
 mod errors;                             pub use errors::*;
 mod estring;                            pub use estring::*;
 pub mod encoding;                       pub use encoding::Encoding; use encoding::*;
 mod fmt;
 mod pointers;                           pub use pointers::*;
-mod try_into_as_traits;                 pub use try_into_as_traits::*;
 mod unit;                               pub use unit::*;
 
 pub(crate) mod private {
