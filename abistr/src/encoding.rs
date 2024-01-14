@@ -2,6 +2,7 @@
 //! <code>[windows]::{[System](windows::System), [CurrentThread](windows::CurrentThread), [ConsoleInput](windows::ConsoleInput), [ConsoleOutput](windows::ConsoleOutput)}</code> <br>
 //! [`CP437`], [`Unknown8`], [`Unknown16`], [`Unknown32`], [`Utf8`], [`Utf8ish`], [`Utf16`], [`Utf16ish`], [`Utf32`], [`Utf32ish`]<br>
 
+pub mod c;
 #[cfg(windows)] pub mod windows;
 
 use bytemuck::{CheckedBitPattern, NoUninit};
