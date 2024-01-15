@@ -13,7 +13,7 @@
 //! A windows process typically has **multiple, different** codepages active within the context of a single thread at once.<br>
 //! Running `examples/hello-world` on my `en-US` machine, I get:
 //!
-//! | [`Encoding`]      | [`ToAnsiCodePage::to_ansi_code_page`] <br> [Code Page Identifiers](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)    |
+//! | [`Encoding`]      | <code>[CodePage]::[from](CodePage::from)(...)</code> <br> [Code Page Identifiers](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)    |
 //! | ------------------| --------------------------------------------------------------------------------------------------------------------------------------------------|
 //! | [`System`]        | <code>[1251]</code>
 //! | [`CurrentThread`] | <code>[1251]</code>
@@ -145,23 +145,57 @@ use core::fmt::{self, Formatter};
 
 
 
-/// Get the appropriate [Code Page Identifier](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers) for this [Encoding].
-pub trait ToAnsiCodePage : Encoding {
-    /// Get the appropriate [Code Page Identifier](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers) for this [Encoding].
-    fn to_ansi_code_page(self) -> u32;
+/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)\]
+/// Code Page Identifier
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck::Pod, bytemuck::Zeroable)] #[repr(transparent)] pub struct CodePage(u32);
+impl CodePage {
+    /// A code page value.  This *should* be a real codepage such as 65001 (UTF-8), not a psuedo-codepage such as 3 (`CP_THREAD_ACP`.)
+    pub const fn new_unchecked(value: u32) -> Self { Self(value) }
 }
 
-impl ToAnsiCodePage for System          { fn to_ansi_code_page(self) -> u32 { unsafe { GetACP()             } } }
-impl ToAnsiCodePage for ConsoleInput    { fn to_ansi_code_page(self) -> u32 { unsafe { GetConsoleCP()       } } }
-impl ToAnsiCodePage for ConsoleOutput   { fn to_ansi_code_page(self) -> u32 { unsafe { GetConsoleOutputCP() } } }
-impl ToAnsiCodePage for CurrentThread   {
-    fn to_ansi_code_page(self) -> u32 {
+impl From<CodePage>         for u32      { fn from(_src: CodePage       ) -> Self { _src.0 } }
+impl From<System>           for CodePage { fn from(_src: System         ) -> CodePage { CodePage(unsafe { GetACP() }) } }
+//impl From<OEM>            for CodePage { fn from(_src: OEM            ) -> CodePage { CodePage::from(PsuedoCodePage::from(_src)) } }
+//impl From<MAC>            for CodePage { fn from(_src: MAC            ) -> CodePage { CodePage::from(PsuedoCodePage::from(_src)) } }
+impl From<CurrentThread>    for CodePage { fn from(_src: CurrentThread  ) -> CodePage { CodePage::from(PsuedoCodePage::from(_src)) } }
+//impl From<Symbols>        for CodePage { fn from(_src: Symbols        ) -> CodePage { CodePage::from(PsuedoCodePage::from(_src)) } }
+//impl From<Utf7>           for CodePage { fn from(_src: Utf7           ) -> CodePage { CodePage::new_unchecked(65000) } } // CP_UTF7
+impl From<Utf8>             for CodePage { fn from(_src: Utf8           ) -> CodePage { CodePage::new_unchecked(65001) } } // CP_UTF8
+impl From<ConsoleInput>     for CodePage { fn from(_src: ConsoleInput   ) -> CodePage { CodePage(unsafe { GetConsoleCP() }) } }
+impl From<ConsoleOutput>    for CodePage { fn from(_src: ConsoleOutput  ) -> CodePage { CodePage(unsafe { GetConsoleOutputCP() }) } }
+impl From<PsuedoCodePage>   for CodePage {
+    fn from(value: PsuedoCodePage) -> CodePage {
         let mut info = CPINFOEXA::zeroed();
-        let r = unsafe { GetCPInfoExA(CP_THREAD_ACP, 0, &mut info) };
+        let r = unsafe { GetCPInfoExA(value.0, 0, &mut info) };
         debug_assert!(r != 0);
-        info.code_page
+        CodePage(info.code_page)
     }
 }
+
+
+
+/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)\]
+/// Code Page Identifier
+/// or psuedo-codepage such as `CP_ACP` (system active codepage), `CP_THREAD_ACP` (current thread active codepage), etc.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck::Pod, bytemuck::Zeroable)] #[repr(transparent)] pub struct PsuedoCodePage(u32);
+impl PsuedoCodePage {
+    /// A code page value.  This *should* be a real codepage such as 65001 (UTF-8), or a psuedo-codepage such as 3 (`CP_THREAD_ACP`.)
+    pub const fn new_unchecked(value: u32) -> Self { Self(value) }
+}
+
+impl From<PsuedoCodePage>   for u32            { fn from(pcp: PsuedoCodePage) -> Self { pcp.0 } }
+impl From<System>           for PsuedoCodePage { fn from(_src: System       ) -> PsuedoCodePage { PsuedoCodePage(    0) } } // CP_ACP
+//impl From<OEM>            for PsuedoCodePage { fn from(_src: OEM          ) -> PsuedoCodePage { PsuedoCodePage(    1) } } // CP_OEMCP
+//impl From<MAC>            for PsuedoCodePage { fn from(_src: MAC          ) -> PsuedoCodePage { PsuedoCodePage(    2) } } // CP_MACCP
+impl From<CurrentThread>    for PsuedoCodePage { fn from(_src: CurrentThread) -> PsuedoCodePage { PsuedoCodePage(    3) } } // CP_THREAD_ACP
+//impl From<Symbols>        for PsuedoCodePage { fn from(_src: Symbols      ) -> PsuedoCodePage { PsuedoCodePage(   42) } } // CP_SYMBOL
+//impl From<Utf7>           for PsuedoCodePage { fn from(_src: Utf7         ) -> PsuedoCodePage { PsuedoCodePage::from(CodePage::from(_src)) } }
+impl From<Utf8>             for PsuedoCodePage { fn from(_src: Utf8         ) -> PsuedoCodePage { PsuedoCodePage::from(CodePage::from(_src)) } }
+impl From<ConsoleInput>     for PsuedoCodePage { fn from(_src: ConsoleInput ) -> PsuedoCodePage { PsuedoCodePage::from(CodePage::from(_src)) } }
+impl From<ConsoleOutput>    for PsuedoCodePage { fn from(_src: ConsoleOutput) -> PsuedoCodePage { PsuedoCodePage::from(CodePage::from(_src)) } }
+impl From<CodePage>         for PsuedoCodePage { fn from(_src: CodePage     ) -> PsuedoCodePage { PsuedoCodePage(_src.0) } } // all code-pages count as PsuedoCodePage s
+
+
 
 impl Encoding for System        { type Unit = u8; fn debug_fmt(units: &[Self::Unit], fmt: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(units, fmt) } }
 impl Encoding for CurrentThread { type Unit = u8; fn debug_fmt(units: &[Self::Unit], fmt: &mut Formatter) -> fmt::Result { crate::fmt::cstr_bytes(units, fmt) } }
@@ -181,6 +215,7 @@ impl Encoding for ConsoleOutput { type Unit = u8; fn debug_fmt(units: &[Self::Un
     fn GetConsoleCP() -> c_uint;
     fn GetConsoleOutputCP() -> c_uint;
     fn GetCPInfoExA(code_page: c_uint, dw_flags: c_uint, cp_info_ex: &mut CPINFOEXA) -> c_uint;
+    fn GetCPInfoExW(code_page: c_uint, dw_flags: c_uint, cp_info_ex: &mut CPINFOEXW) -> c_uint;
 }
 
 #[repr(C)] #[derive(Clone, Zeroable)] struct CPINFOEXA {
@@ -192,8 +227,11 @@ impl Encoding for ConsoleOutput { type Unit = u8; fn debug_fmt(units: &[Self::Un
     pub code_page_name:         CStrBuf<Unknown8, 260>,
 }
 
-const CP_OEMCP      : u32 = 1;
-const CP_MACCP      : u32 = 2;
-const CP_THREAD_ACP : u32 = 3;
-const CP_UTF7       : u32 = 65000;
-const CP_UTF8       : u32 = 65001;
+#[repr(C)] #[derive(Clone, Zeroable)] struct CPINFOEXW {
+    pub max_char_size:          c_uint,
+    pub default_char:           [u8;  2],
+    pub lead_byte:              [u8; 12],
+    pub unicode_default_char:   u16,
+    pub code_page:              c_uint,
+    pub code_page_name:         CStrBuf<Utf16ish, 260>,
+}

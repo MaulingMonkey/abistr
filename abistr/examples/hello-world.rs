@@ -14,10 +14,10 @@ fn main() {
 
 
     pub fn main() {
-        dbg!(System.to_ansi_code_page());
-        dbg!(CurrentThread.to_ansi_code_page());
-        dbg!(ConsoleInput.to_ansi_code_page());
-        dbg!(ConsoleOutput.to_ansi_code_page());
+        dbg!(CodePage::from(System));
+        dbg!(CodePage::from(CurrentThread));
+        dbg!(CodePage::from(ConsoleInput));
+        dbg!(CodePage::from(ConsoleOutput));
 
         if let Ok(conout) = get_std_handle(STD_OUTPUT_HANDLE) {
             let _ = write_console_a(conout, utf8!("Hello, world!").to_units(), ());
