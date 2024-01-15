@@ -25,13 +25,13 @@ fn main() {
     let ptr_unk16 = CStrPtr::from(nn_unk16);
     let ptr_unk32 = CStrPtr::from(nn_unk32);
 
-    let buf_utf8ish  = CStrBuf::<encoding::Utf8ish,  16>::from_truncate(nn_utf8ish.to_units());
-    let buf_utf16ish = CStrBuf::<encoding::Utf16ish, 16>::from_truncate(nn_utf16ish.to_units());
-    let buf_utf32ish = CStrBuf::<encoding::Utf32ish, 16>::from_truncate(nn_utf32ish.to_units());
+    let buf_utf8ish  = CStrBuf::<encoding::Utf8ish,  32>::from_truncate(nn_utf8ish.to_units());
+    let buf_utf16ish = CStrBuf::<encoding::Utf16ish, 32>::from_truncate(nn_utf16ish.to_units());
+    let buf_utf32ish = CStrBuf::<encoding::Utf32ish, 32>::from_truncate(nn_utf32ish.to_units());
 
-    let buf_unk8  = CStrBuf::<encoding::Unknown8,  16>::from_truncate(nn_unk8.to_units());
-    let buf_unk16 = CStrBuf::<encoding::Unknown16, 16>::from_truncate(nn_unk16.to_units());
-    let buf_unk32 = CStrBuf::<encoding::Unknown32, 16>::from_truncate(nn_unk32.to_units());
+    let buf_unk8  = CStrBuf::<encoding::Unknown8,  32>::from_truncate(nn_unk8.to_units());
+    let buf_unk16 = CStrBuf::<encoding::Unknown16, 32>::from_truncate(nn_unk16.to_units());
+    let buf_unk32 = CStrBuf::<encoding::Unknown32, 32>::from_truncate(nn_unk32.to_units());
 
     #[cfg(windows)] let _pcp = dbg!(encoding::windows::PsuedoCodePage::from(encoding::Utf8ish));
     #[cfg(windows)] let  _cp = dbg!(encoding::windows::      CodePage::from(encoding::Utf8ish));
