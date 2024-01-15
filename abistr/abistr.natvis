@@ -187,4 +187,31 @@
         <DisplayString>{(char *)buffer,s32}</DisplayString>
         <Expand><ExpandedItem>buffer,s32</ExpandedItem></Expand>
     </Type>
+
+
+
+    <Type Name="abistr::encoding::windows::CodePage">
+        <DisplayString Condition="__0 ==     0">{__0} = CP_ACP</DisplayString>
+        <DisplayString Condition="__0 ==     1">{__0} = CP_OEMCP</DisplayString>
+        <DisplayString Condition="__0 ==     2">{__0} = CP_MACCP</DisplayString>
+        <DisplayString Condition="__0 ==     3">{__0} = CP_THREAD_ACP</DisplayString>
+        <DisplayString Condition="__0 ==    42">{__0} = CP_SYMBOL</DisplayString>
+        <DisplayString Condition="__0 ==   437">{__0} = "OEM - United States"</DisplayString>
+        <DisplayString Condition="__0 ==  1251">{__0} = "ANSI - Latin I"</DisplayString>
+        <DisplayString Condition="__0 == 65000">{__0} = CP_UTF7</DisplayString>
+        <DisplayString Condition="__0 == 65001">{__0} = CP_UTF8</DisplayString>
+        <DisplayString>__0</DisplayString>
+    </Type>
+    <Type Name="abistr::encoding::windows::PsuedoCodePage">
+        <DisplayString Condition="__0 ==     0">{__0} = CP_ACP</DisplayString>
+        <DisplayString Condition="__0 ==     1">{__0} = CP_OEMCP</DisplayString>
+        <DisplayString Condition="__0 ==     2">{__0} = CP_MACCP</DisplayString>
+        <DisplayString Condition="__0 ==     3">{__0} = CP_THREAD_ACP</DisplayString>
+        <DisplayString Condition="__0 ==    42">{__0} = CP_SYMBOL</DisplayString>
+        <DisplayString Condition="__0 ==   437">{__0} = "OEM - United States"</DisplayString>
+        <DisplayString Condition="__0 ==  1251">{__0} = "ANSI - Latin I"</DisplayString>
+        <DisplayString Condition="__0 == 65000">{__0} = CP_UTF7</DisplayString>
+        <DisplayString Condition="__0 == 65001">{__0} = CP_UTF8</DisplayString>
+        <DisplayString>__0</DisplayString>
+    </Type>
 </AutoVisualizer>

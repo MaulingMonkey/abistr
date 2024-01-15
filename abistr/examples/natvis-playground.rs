@@ -33,6 +33,9 @@ fn main() {
     let buf_unk16 = CStrBuf::<encoding::Unknown16, 16>::from_truncate(nn_unk16.to_units());
     let buf_unk32 = CStrBuf::<encoding::Unknown32, 16>::from_truncate(nn_unk32.to_units());
 
+    #[cfg(windows)] let _pcp = dbg!(encoding::windows::PsuedoCodePage::from(encoding::Utf8ish));
+    #[cfg(windows)] let  _cp = dbg!(encoding::windows::      CodePage::from(encoding::Utf8ish));
+
     dbg!((
         nn_utf8, nn_utf16, nn_utf32,
         ptr_utf8, ptr_utf16, ptr_utf32,
