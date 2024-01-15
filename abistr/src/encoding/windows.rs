@@ -154,7 +154,7 @@ impl CodePage {
 }
 
 impl From<CodePage>         for u32      { fn from(_src: CodePage       ) -> Self { _src.0 } }
-impl From<System>           for CodePage { fn from(_src: System         ) -> CodePage { CodePage(unsafe { GetACP() }) } }
+impl From<System>           for CodePage { fn from(_src: System         ) -> CodePage { unsafe { GetACP() } } }
 //impl From<OEM>            for CodePage { fn from(_src: OEM            ) -> CodePage { CodePage::from(PsuedoCodePage::from(_src)) } }
 //impl From<MAC>            for CodePage { fn from(_src: MAC            ) -> CodePage { CodePage::from(PsuedoCodePage::from(_src)) } }
 impl From<CurrentThread>    for CodePage { fn from(_src: CurrentThread  ) -> CodePage { CodePage::from(PsuedoCodePage::from(_src)) } }
@@ -162,14 +162,14 @@ impl From<CurrentThread>    for CodePage { fn from(_src: CurrentThread  ) -> Cod
 //impl From<Utf7>           for CodePage { fn from(_src: Utf7           ) -> CodePage { CodePage::new_unchecked(65000) } } // CP_UTF7
 impl From<Utf8>             for CodePage { fn from(_src: Utf8           ) -> CodePage { CodePage::new_unchecked(65001) } } // CP_UTF8
 impl From<Utf8ish>          for CodePage { fn from(_src: Utf8ish        ) -> CodePage { CodePage::new_unchecked(65001) } } // CP_UTF8
-impl From<ConsoleInput>     for CodePage { fn from(_src: ConsoleInput   ) -> CodePage { CodePage(unsafe { GetConsoleCP() }) } }
-impl From<ConsoleOutput>    for CodePage { fn from(_src: ConsoleOutput  ) -> CodePage { CodePage(unsafe { GetConsoleOutputCP() }) } }
+impl From<ConsoleInput>     for CodePage { fn from(_src: ConsoleInput   ) -> CodePage { unsafe { GetConsoleCP() } } }
+impl From<ConsoleOutput>    for CodePage { fn from(_src: ConsoleOutput  ) -> CodePage { unsafe { GetConsoleOutputCP() } } }
 impl From<PsuedoCodePage>   for CodePage {
     fn from(value: PsuedoCodePage) -> CodePage {
         let mut info = CPINFOEXA::zeroed();
         let r = unsafe { GetCPInfoExA(value.0, 0, &mut info) };
         debug_assert!(r != 0);
-        CodePage(info.code_page)
+        info.code_page
     }
 }
 
@@ -242,9 +242,9 @@ fn debug(ty: &'static str, codepage: u32, fmt: &mut Formatter) -> fmt::Result {
 
 
 #[link(name = "user32")] extern "system" {
-    fn GetACP() -> c_uint;
-    fn GetConsoleCP() -> c_uint;
-    fn GetConsoleOutputCP() -> c_uint;
+    fn GetACP() -> CodePage;
+    fn GetConsoleCP() -> CodePage;
+    fn GetConsoleOutputCP() -> CodePage;
     fn GetCPInfoExA(code_page: c_uint, dw_flags: c_uint, cp_info_ex: &mut CPINFOEXA) -> c_uint;
     fn GetCPInfoExW(code_page: c_uint, dw_flags: c_uint, cp_info_ex: &mut CPINFOEXW) -> c_uint;
 }
@@ -254,7 +254,7 @@ fn debug(ty: &'static str, codepage: u32, fmt: &mut Formatter) -> fmt::Result {
     pub default_char:           [u8;  2],
     pub lead_byte:              [u8; 12],
     pub unicode_default_char:   u16,
-    pub code_page:              c_uint,
+    pub code_page:              CodePage,
     pub code_page_name:         CStrBuf<Unknown8, 260>,
 }
 
@@ -263,6 +263,6 @@ fn debug(ty: &'static str, codepage: u32, fmt: &mut Formatter) -> fmt::Result {
     pub default_char:           [u8;  2],
     pub lead_byte:              [u8; 12],
     pub unicode_default_char:   u16,
-    pub code_page:              c_uint,
+    pub code_page:              CodePage,
     pub code_page_name:         CStrBuf<Utf16ish, 260>,
 }
