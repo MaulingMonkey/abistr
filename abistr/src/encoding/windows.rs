@@ -108,6 +108,10 @@ use core::fmt::{self, Debug, Formatter, Write};
 
 
 
+/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/unicode-in-the-windows-api)\]
+/// The "wide" encoding (≈ UTF-16), used for all `*W`-marked Windows APIs.
+pub type Wide = super::Utf16ish;
+
 /// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-getacp)\]
 /// `CP_ACP` / `GetACP()`
 /// <br>
