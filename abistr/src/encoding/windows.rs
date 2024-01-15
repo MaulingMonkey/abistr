@@ -108,17 +108,17 @@ use core::fmt::{self, Debug, Formatter, Write};
 
 
 
-/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/unicode-in-the-windows-api)\]
+/// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/unicode-in-the-windows-api)\]
 /// The "wide" encoding (≈ UTF-16), used for all `*W`-marked Windows APIs.
 pub type Wide = super::Utf16ish;
 
-/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-getacp)\]
+/// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-getacp)\]
 /// `CP_ACP` / `GetACP()`
 /// <br>
 /// The system codepage, used for GDI etc?
 #[derive(Clone, Copy)] pub struct System;
 
-/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-getcpinfoexa)\]
+/// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-getcpinfoexa)\]
 /// `CP_THREAD_ACP`
 /// <br>
 /// The current thread's codepage.
@@ -127,7 +127,7 @@ pub type Wide = super::Utf16ish;
 /// [SetThreadLocale]:  https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-setthreadlocale
 #[derive(Clone, Copy)] pub struct CurrentThread;
 
-/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/console/getconsolecp)\]
+/// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/console/getconsolecp)\]
 /// `GetConsoleCP()`
 /// <br>
 /// Typically the console's <code>[chcp]</code>.
@@ -137,7 +137,7 @@ pub type Wide = super::Utf16ish;
 /// [Visual Studio Code]:   https://code.visualstudio.com/
 #[derive(Clone, Copy)] pub struct ConsoleInput;
 
-/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/console/getconsoleoutputcp)\]
+/// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/console/getconsoleoutputcp)\]
 /// `GetConsoleOutputCP()`
 /// <br>
 /// Typically the console's <code>[chcp]</code>.
@@ -149,7 +149,7 @@ pub type Wide = super::Utf16ish;
 
 
 
-/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)\]
+/// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)\]
 /// Code Page Identifier
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck::Pod, bytemuck::Zeroable)] #[repr(transparent)] pub struct CodePage(u32);
 impl CodePage {
@@ -179,7 +179,7 @@ impl From<PsuedoCodePage>   for CodePage {
 
 
 
-/// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)\]
+/// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)\]
 /// Code Page Identifier
 /// or psuedo-codepage such as `CP_ACP` (system active codepage), `CP_THREAD_ACP` (current thread active codepage), etc.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck::Pod, bytemuck::Zeroable)] #[repr(transparent)] pub struct PsuedoCodePage(u32);

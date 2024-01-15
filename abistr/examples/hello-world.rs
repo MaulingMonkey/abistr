@@ -27,7 +27,7 @@ fn main() {
 
 
 
-    /// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxa)\]
+    /// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxa)\]
     /// MessageBoxA
     fn message_box_a(_hwnd: (), text: impl AsOptCStr<System>, caption: impl AsOptCStr<System>, type_: c_uint) -> Result<c_int, ()> {
         let hwnd    = core::ptr::null();
@@ -44,14 +44,14 @@ fn main() {
 
     #[derive(Clone, Copy, Debug)] struct ConsoleHandle(NonNull<()>);
 
-    /// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/console/getstdhandle)\]
+    /// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/console/getstdhandle)\]
     /// GetStdHandle
     fn get_std_handle(std_handle: i32) -> Result<ConsoleHandle, ()> {
         #[link(name = "user32")] extern "system" { fn GetStdHandle(std_handle: u32) -> *mut (); }
         Ok(ConsoleHandle(NonNull::new(unsafe { GetStdHandle(std_handle as _) }).ok_or(())?))
     }
 
-    /// \[[learn.microsoft.com](https://learn.microsoft.com/en-us/windows/console/writeconsole)\]
+    /// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/console/writeconsole)\]
     /// WriteConsoleA
     fn write_console_a(console_output: ConsoleHandle, text: impl AsRef<[u8]>, _reserved: ()) -> Result<(), ()> {
         // TODO: apply encoding::windows::ConsoleOutput to type signature
