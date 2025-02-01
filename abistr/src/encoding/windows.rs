@@ -222,7 +222,7 @@ fn debug(ty: &'static str, codepage: u32, fmt: &mut Formatter) -> fmt::Result {
         0  => "CP_ACP",
         1  => "CP_OEMCP",
         2  => "CP_MACCP",
-        3  => "CP_THREAD_CP",
+        3  => "CP_THREAD_ACP",
         42 => "CP_SYMBOL",
         _ => {
             let mut info = CPINFOEXW::zeroed();
