@@ -3,7 +3,7 @@
 //!
 //! Microsoft [recommends](https://learn.microsoft.com/en-us/windows/win32/intl/unicode) using the codepage-agnostic
 //! [UTF-16]ish `wchar_t`-based `*W` APIs that work directly with Windows&nbsp;NT's native internal encoding.
-//! I do too:  Not even [ASCII] is safe from [Mojibake].
+//! I do too, for the several reasons listed bellow.
 //! This module, arguably, mainly exists to discourage it's own use.
 //!
 //!
@@ -24,16 +24,16 @@
 //!
 //! # `Encoding`s need not be based on ASCII.
 //!
+//! Not even [ASCII] is safe from [Mojibake].
 //! For example, if you invoke <code>[chcp] [037]</code> to change your console codepage to an [EBCDIC] derivative,
 //! `0x41` will encode `NBSP` instead of `'A'`, and `0xC1` will encode `'A'` instead of `┴`.
 //! While such extremes are uncommon, [Shift JIS] is more common &mdash; which while [ASCII]-*based*,
 //! replaces `|` with `¥` for `0x5C`, and `~` with `‾` for `0x7E`.
 //!
-//! It is little wonder, then, that Microsoft [recommends](https://learn.microsoft.com/en-us/windows/win32/intl/unicode) using the codepage-agnostic [UTF-16]ish `wchar_t`-based `*W` APIs that work directly with Windows&nbsp;NT's native internal encoding.
-//! I do too:  Not even [ASCII] is safe from [Mojibake].
-//! The types in this module arguably exist mostly to discourage you from using them.
-//!
 //! ```text
+//! C:\local\hello-world\with\WriteConsoleA>chcp
+//! Active code page: 437
+//!
 //! C:\local\hello-world\with\WriteConsoleA>cargo run --quiet
 //! Hello, world!
 //!
@@ -86,6 +86,13 @@
 //! *   It risks [Mojibake](https://en.wikipedia.org/wiki/Mojibake) &mdash; Microsoft themselves point out this manifest setting [isn't supported by GDI](https://learn.microsoft.com/en-us/windows/apps/design/globalizing/use-utf8-code-page#set-a-process-code-page-to-utf-8).
 //! *   Windows NT is ≈UTF-16 internally anyways &mdash; so this won't let you avoid conversion, merely shift where conversion occurs.
 //!
+//!
+//!
+//! # See Also
+//! *   [Locales and Languages](https://learn.microsoft.com/en-us/windows/win32/intl/locales-and-languages) (microsoft.com)
+//! *   [What is my locale? Well, which locale do you mean?](https://archives.miloush.net/michkap/archive/2005/02/01/364707.html) (archives.miloush.net)
+// See also original link: http://www.siao2.com/2005/02/01/364707.aspx
+//!
 //! [037]:                  https://www.compart.com/en/unicode/charsets/IBM037
 //! [437]:                  https://www.compart.com/en/unicode/charsets/IBM437
 //! [1251]:                 https://en.wikipedia.org/wiki/Windows-1251
@@ -113,35 +120,70 @@ use core::fmt::{self, Debug, Formatter, Write};
 pub type Wide = super::Utf16ish;
 
 /// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-getacp)\]
-/// `CP_ACP` / `GetACP()`
+/// `CP_ACP` / `GetACP()` (based on `LOCALE_SYSTEM_DEFAULT`?)<br>
+/// Prefer [`Wide`]-encoded `*W` APIs &mdash; see [`encoding::windows`] for detailed rants about why.<br>
+/// The system's active codepage.  Usually not what you want even for `*A` APIs.<br>
 /// <br>
-/// The system codepage, used for GDI etc?
+///
+/// This is typically configured when Windows is installed, although it can be changed after the fact through the control panel (and full reboot?)
+///
+/// My understanding is that this won't respond to the user changing locales "on the fly", or even to whatever locale the user had on login, especially for multi-user systems / terminal servers.
+/// You probably want [`CurrentThread`] for most narrow string use cases instead.
+///
+///
+///
+/// # See Also
+/// *   [Locales and Languages](https://learn.microsoft.com/en-us/windows/win32/intl/locales-and-languages) (microsoft.com)
+/// *   [What is my locale? Well, which locale do you mean?](https://archives.miloush.net/michkap/archive/2005/02/01/364707.html) (archives.miloush.net)
+// See also original link: http://www.siao2.com/2005/02/01/364707.aspx
+///
 #[derive(Clone, Copy)] pub struct System;
 
 /// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-getcpinfoexa)\]
-/// `CP_THREAD_ACP`
+/// `CP_THREAD_ACP` (based on `LOCALE_USER_DEFAULT`?)<br>
+/// Prefer [`Wide`]-encoded `*W` APIs &mdash; see [`encoding::windows`] for detailed rants about why.<br>
+/// The current thread's codepage, used for many (most?) `*A`-marked Windows APIs.<br>
 /// <br>
-/// The current thread's codepage.
-/// Changes if you <code>[SetThreadLocale]\(...\)</code>.
+///
+/// I'm currently unsure what the exact behavior is when spawning a thread *after* the language has been changed.
+/// Possiblities include:
+/// *   The new thread might adopt the user's newly configured locale?
+/// *   The new thread might inherit the parent thread's locale?
+/// *   The new thread might inherit the process's initial locale?
+/// *   The new thread might inherit the user's locale at time of login?
+///
+/// If you have a firmer grasp on this than I do, consider [filing a github issue](https://github.com/MaulingMonkey/abistr/issues/new)
+/// to replace this documentation with a better description if you're looking at the latest version of said documentation.
+///
+/// Can also be changed via <code>[SetThreadLocale]\(...\)</code>.
+///
+///
+///
+/// # See Also
+/// *   [Locales and Languages](https://learn.microsoft.com/en-us/windows/win32/intl/locales-and-languages) (microsoft.com)
+/// *   [What is my locale? Well, which locale do you mean?](https://archives.miloush.net/michkap/archive/2005/02/01/364707.html) (archives.miloush.net)
+// See also original link: http://www.siao2.com/2005/02/01/364707.aspx
 ///
 /// [SetThreadLocale]:  https://learn.microsoft.com/en-us/windows/win32/api/winnls/nf-winnls-setthreadlocale
 #[derive(Clone, Copy)] pub struct CurrentThread;
 
 /// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/console/getconsolecp)\]
-/// `GetConsoleCP()`
+/// `GetConsoleCP()`.<br>
+/// Prefer [`Wide`]-encoded `*W` APIs &mdash; see [`encoding::windows`] for detailed rants about why.<br>
+/// Typically for en-US, 437 = [`ConsoleInput`] = <code>[chcp]</code> != [`CurrentThread`] = 1251.<br>
+/// Can differ from [`ConsoleOutput`] in a pseudo console &mdash; such as [Visual Studio Code]'s.<br>
 /// <br>
-/// Typically the console's <code>[chcp]</code>.
-/// Can differ from [`ConsoleOutput`] in a pseudo console ([Visual Studio Code].)
 ///
 /// [chcp]:                 https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/chcp
 /// [Visual Studio Code]:   https://code.visualstudio.com/
 #[derive(Clone, Copy)] pub struct ConsoleInput;
 
 /// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/console/getconsoleoutputcp)\]
-/// `GetConsoleOutputCP()`
+/// `GetConsoleOutputCP()`.<br>
+/// Prefer [`Wide`]-encoded `*W` APIs &mdash; see [`encoding::windows`] for detailed rants about why.<br>
+/// Typically for en-US, 437 = [`ConsoleOutput`] = <code>[chcp]</code> != [`CurrentThread`] = 1251.<br>
+/// Can differ from [`ConsoleInput`] in a pseudo console &mdash; such as [Visual Studio Code]'s.<br>
 /// <br>
-/// Typically the console's <code>[chcp]</code>.
-/// Can differ from [`ConsoleInput`] in a pseudo console ([Visual Studio Code].)
 ///
 /// [chcp]:                 https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/chcp
 /// [Visual Studio Code]:   https://code.visualstudio.com/
@@ -150,7 +192,9 @@ pub type Wide = super::Utf16ish;
 
 
 /// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)\]
-/// Code Page Identifier
+/// Code Page Identifier such as `CP_UTF8`, `1251` (Windows-1251), etc.<br>
+/// If you also support psuedo-codepages such as `CP_ACP`, use [`PsuedoCodePage`] instead.<br>
+/// <br>
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck::Pod, bytemuck::Zeroable)] #[repr(transparent)] pub struct CodePage(u32);
 impl CodePage {
     /// A code page value.  This *should* be a real codepage such as 65001 (UTF-8), not a psuedo-codepage such as 3 (`CP_THREAD_ACP`.)
@@ -182,6 +226,7 @@ impl From<PsuedoCodePage>   for CodePage {
 /// \[[microsoft.com](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers)\]
 /// Code Page Identifier
 /// or psuedo-codepage such as `CP_ACP` (system active codepage), `CP_THREAD_ACP` (current thread active codepage), etc.
+/// <br><br>
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck::Pod, bytemuck::Zeroable)] #[repr(transparent)] pub struct PsuedoCodePage(u32);
 impl PsuedoCodePage {
     /// A code page value.  This *should* be a real codepage such as 65001 (UTF-8), or a psuedo-codepage such as 3 (`CP_THREAD_ACP`.)
